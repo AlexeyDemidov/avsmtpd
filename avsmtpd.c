@@ -1,8 +1,12 @@
 /*
- *   $Id: avsmtpd.c,v 1.6 2003-02-23 12:00:28 alexd Exp $
+ *   $Id: avsmtpd.c,v 1.7 2003-03-01 12:50:57 alexd Exp $
  *
  *   $Log: avsmtpd.c,v $
- *   Revision 1.6  2003-02-23 12:00:28  alexd
+ *   Revision 1.7  2003-03-01 12:50:57  alexd
+ *   add -t switch for timeout setting
+ *   make 120 sec default timeout
+ *
+ *   Revision 1.6  2003/02/23 12:00:28  alexd
  *   if NO_FORK don't go into daemon mode
  *
  *   Revision 1.5  2003/02/23 07:27:15  alexd
@@ -77,7 +81,7 @@ const char *euser    = "alexd";
 char *connect_to = "localhost:10026";
 char *bind_to    = "localhost:10025";
 
-int   timeout    = 12000;
+int   timeout    = 120000;
 
 int   drweb_ver  = 0;
 char *drweb_id   = NULL;
@@ -422,7 +426,7 @@ void parse_args(int argc, char **argv)
         int c;
 
         while (1) {
-                c = getopt(argc, argv, "ndVvc:f:l:p:w:b:");
+                c = getopt(argc, argv, "tndVvc:f:l:p:w:b:");
                 if (c == -1)
                         break;
 
@@ -447,6 +451,9 @@ void parse_args(int argc, char **argv)
                                 break;
                         case 'n':
                                 no_check = 1;
+                                break;
+                        case 't':
+                                timeout = strtol(optarg, NULL, 10);
                                 break;
                         case 'v':
                                 verbose_mode = 1;
