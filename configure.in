@@ -28,7 +28,7 @@ AC_FUNC_MALLOC
 AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
 AC_CHECK_FUNCS([bzero dup2 gethostbyname  getrlimit socket strerror])
-AC_CHECK_FUNCS([strcasecmp strdup strchr strrchr strstr strtol])
+AC_CHECK_FUNCS([strncasecmp strcasecmp strdup strchr strrchr strstr strtol])
 
 AC_OUTPUT([Makefile])
 # [chmod +x automake aclocal])

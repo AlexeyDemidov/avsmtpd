@@ -4,11 +4,14 @@
  */
 
 /*
- *  $Id: daemon.c,v 1.1 2003-02-16 16:44:08 alexd Exp $
+ *  $Id: daemon.c,v 1.2 2003-02-17 01:22:48 alexd Exp $
  *
  *  $Log: daemon.c,v $
- *  Revision 1.1  2003-02-16 16:44:08  alexd
- *  Initial revision
+ *  Revision 1.2  2003-02-17 01:22:48  alexd
+ *  moved some functions to smtp.c sock.c
+ *
+ *  Revision 1.1.1.1  2003/02/16 16:44:08  alexd
+ *  import into cvs
  *
  *  Revision 1.3  2001/03/24 17:51:05  alexd
  *  Added RCS strings to .c files
@@ -41,8 +44,10 @@
 #include "daemon.h"
 #include "log.h"
 
-const static char *rcsid = "$Id: daemon.c,v 1.1 2003-02-16 16:44:08 alexd Exp $";
-const static char *revision = "$Revision: 1.1 $";
+#ifndef lint
+const static char *rcsid = "$Id: daemon.c,v 1.2 2003-02-17 01:22:48 alexd Exp $";
+const static char *revision = "$Revision: 1.2 $";
+#endif
 
 
 /*

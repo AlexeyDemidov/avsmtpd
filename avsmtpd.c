@@ -1,26 +1,32 @@
+/*
+ *   $Id: avsmtpd.c,v 1.2 2003-02-17 01:22:48 alexd Exp $
+ *
+ *   $Log: avsmtpd.c,v $
+ *   Revision 1.2  2003-02-17 01:22:48  alexd
+ *   moved some functions to smtp.c sock.c
+ *
+ *
+ *
+ */
+
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
-#include <ctype.h>
-#include <limits.h>
-#include <errno.h>
-#include <sys/wait.h>
-#include <sys/signal.h>
-#include <sys/syslog.h>
 #include <sys/types.h>
+#include <sys/syslog.h>
+#include <sys/wait.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
-#include <time.h>
-#include <netdb.h>
-#include <fcntl.h>
+#include <errno.h>
+#include <signal.h>
 
 #include "config.h"
 #include "log.h"
 #include "daemon.h"
+#include "sock.h"
 #include "drweb.h"
+#include "smtp.h"
 
 /*
  *
@@ -47,17 +53,8 @@ const char *euser    = "alexd";
 char *connect_to = "localhost:10026";
 char *bind_to    = "localhost:10025";
 
-struct smtp_resp {
-    int code;
-    int cont;
-    char *text;
-};
-
-struct smtp_cmd {
-    char *command;
-    int  argc;
-    char **argv;
-};
+int   drweb_ver  = 0;
+char *drweb_id   = NULL;
 
 void av_shutdown(int rc);
 void server( int s );
@@ -96,94 +93,6 @@ void av_shutdown(int rc) {
     exit(rc);
 }
 
-int sock_connect( struct sockaddr *addr) {
-    /*
-    flags = fcntl( s, F_GETFL, 0 );
-    fcntl( s, F_SETFL, flags | O_NONBLOCK );
-
-    FD_ZERO
-
-    select( )
-    */
-    return -1;
-}
-
-int sock_listen( ) {
-    return -1;
-}
-
-/*
- *   host:port
- *   /path/to/socket
- *
- */
-struct sockaddr *parse_addr( const char *addr ) {
-    static struct sockaddr saddr;
-
-    struct sockaddr_in *saddr_in = (struct sockaddr_in *)&saddr;
-
-    struct hostent *hp = NULL;
-
-    char *ptr      = NULL;
-
-    char *a        = NULL;
-    char *port     = NULL;
-    char *protocol = "tcp";
-
-    if ( addr == NULL ) {
-        error("parse_addr: invalid argument");
-        return NULL;
-    }
-        
-    a = strdup( addr );
-
-    bzero( &saddr, sizeof(saddr) );
-
-    if ( a[0] == '/') {
-        error("parse_addr: unix sockets not supported now");
-        return NULL;
-    }
-    
-    saddr_in->sin_family = AF_INET;
-
-    if ( (ptr = strchr( a, ':')) != NULL ) {
-        *ptr = '\0';
-        port = strdup( ptr + 1 ); 
-    }
-
-    if ( inet_aton( a, &saddr_in->sin_addr) == 0 ) {
-        if ( (hp = gethostbyname(a)) == NULL ) {
-            error("parse_addr: unknown host name %s", a );
-            return NULL;
-        }
-        if ( hp->h_addrtype != AF_INET ) {
-            error("parse_addr: unsuppored protocol for %s (%d)", addr, hp->h_addrtype );
-            return NULL;
-        }
-        saddr_in->sin_addr = *(struct in_addr *)hp->h_addr;
-    }
-
-    if ( port == NULL ) {
-        error("parse_addr: unknown port %s", addr );
-        return NULL;
-    }
-
-    saddr_in->sin_port = htons( strtol( port, &ptr, 0 ) ); 
-
-    if ( *ptr != '\0' ) { 
-        struct servent *sp;
-
-        sp = getservbyname( port, protocol );
-        if ( sp == NULL ) {
-            error("parse_addr: unknown service %s", port );
-            return NULL;
-        }
-        saddr_in->sin_port = sp->s_port;
-    }
-
-    return &saddr;
-}
-
 
 void main_loop() { 
     int s, s1;
@@ -195,13 +104,7 @@ void main_loop() {
 
     bzero( &local, sizeof (local));
     bzero( &peer,  sizeof (local));
-/*
-    local.sin_family = AF_INET;
-//    local.sin_addr.s_addr = htonl( INADDR_ANY );
-    local.sin_port = htons( 10025 );
-
-    inet_aton( "localhost", &local.sin_addr );
-*/
+    
     if ( parse_addr( bind_to ) == NULL ) {
         return;
     }
@@ -251,13 +154,6 @@ int client_connect() {
     
     bzero( &peer,  sizeof (peer));
 
-/*    
-    peer.sin_family = AF_INET;
-   // peer.sin_addr.s_addr = htonl( INADDR_ANY );
-    peer.sin_port = htons( 10026 );
-
-    inet_aton( "localhost", &peer.sin_addr );
-*/
     if ( parse_addr( connect_to ) == NULL ) {
         return -1;
     }
@@ -277,369 +173,6 @@ int client_connect() {
 
     notice("connected to %s", connect_to );
     return s;
-}
-
-#define DAY_MIN         (24 * HOUR_MIN) /* minutes in a day */
-#define HOUR_MIN        60              /* minutes in an hour */
-#define MIN_SEC         60              /* seconds in a minute */
-
-char *mail_date ( time_t when ) { 
-
-    static char buf[1500];
-    char b2[10];
-    char b3[10];
-
-    struct tm *lt; 
-    struct tm gmt; 
-    int     gmtoff;
-
-    gmt = *gmtime(&when); 
-    lt = localtime(&when); 
-    
-    gmtoff = (lt->tm_hour - gmt.tm_hour) * HOUR_MIN + lt->tm_min - gmt.tm_min; 
-    if (lt->tm_year < gmt.tm_year) 
-        gmtoff -= DAY_MIN; 
-    else if (lt->tm_year > gmt.tm_year) 
-        gmtoff += DAY_MIN; 
-    else if (lt->tm_yday < gmt.tm_yday) 
-        gmtoff -= DAY_MIN; 
-    else if (lt->tm_yday > gmt.tm_yday) 
-        gmtoff += DAY_MIN; 
-    if (lt->tm_sec <= gmt.tm_sec - MIN_SEC) 
-        gmtoff -= 1; 
-    else if (lt->tm_sec >= gmt.tm_sec + MIN_SEC) 
-        gmtoff += 1;
-
-    strftime( buf, sizeof(buf), "%a, %e %b %Y %H:%M:%S ", lt );
-    debug("strftime. %s", buf);
-    snprintf( b2, sizeof(b2), "%+03d%02d", (int) (gmtoff / HOUR_MIN),
-                                       (int) (abs(gmtoff) % HOUR_MIN) );
-    strftime( b3, sizeof(b3), " (%Z)", lt );
-
-    strcat( buf , b2);
-    strcat( buf , b3);
-
-    return buf;
-
-}
-
-int smtp_readln( int s, char *buf, size_t len ) {
-
-    char *buf_start = buf;
-    char  c;
-
-    static char *bp;
-    static char b[1500]; /* Typical packet size */
-    static int  cnt = 0; /* number of read bytes in b */
-
-    while( len > 0 ) { /* still need more bytes */
-        if ( cnt <= 0 ) { /* no data in internal buffer */
-
-            cnt = recv( s, b, sizeof(b), 0);
-            if ( cnt < 0) { /* can't read */
-                if ( errno == EINTR ) 
-                    continue;
-                debug("recv: %s", strerror(errno) );
-                return cnt;
-            }
-            if ( cnt == 0 ) /* no data to read */
-                return 0;
-            b[cnt] = '\0';
-            // debug( "recv: <%s>", b);
-            bp = b; /* reset head to begin of b */
-        }
-        c = *bp; /* next char */
-
-        if ( *bp == '\r' && cnt > 1 && len > 1 && *(bp+1) == '\n' ) {
-            *buf = '\0';
-            cnt -= 2;
-            bp += 2;
-            return buf - buf_start;
-            
-        }
-        *buf = c; /* store to caller buffer */
-        cnt--; len--; bp++; buf++; /* */
-    }
-//    set_errno( EMSGSIZE );
-    error("smtp_readln: MSG too big");
-    return -1;
-}
-
-
-int smtp_putline( int s, char *b ) {
-    int rc;
-    size_t len;
-
-    if ( b == NULL ) {
-        error( "smtp_putline: bad argument" );
-        return -1;
-    }
-
-    len = strlen( b );
-
-    debug("smtp_putline: <%s>", b);
-
-    rc = send( s, b, len, 0);
-    if ( rc < 0 ) {
-        Perror("send");
-        return rc;
-    }
-    rc = send( s, "\r\n", 2, 0);
-    if ( rc < 0 ) {
-        Perror("send");
-        return rc;
-    }
-    return rc;
-}
-
-int smtp_printf( int s, const char *fmt, ... ) {
-
-    char b[1500];
-
-    va_list ap;
-    va_start(ap, fmt );
-    
-
-    vsnprintf(b, sizeof(b), fmt, ap);
-    va_end(ap);
-
-    return smtp_putline( s, b);
-}
-
-int smtp_putreply( int s, int code, const char *text, int cont ) {
-
-    char *b;
-    size_t need;
-
-    need = strlen( text ) + 10;
-
-    b = malloc( need );
-
-    snprintf( b, need, "%d%c%s", code, cont ? '-' : ' '  ,text );
-
-    debug("smtp_putreply: %s", b);
-    
-    return smtp_putline( s, b ) <= 0;
-}
-
-
-struct smtp_cmd *
-smtp_readcmd( int s ) {
-    static struct smtp_cmd cmd;
-    
-    char buf[1500];
-    char *p = buf;
-    char *ap = buf;
-    int  i, rc;
-
-    bzero( &cmd, sizeof(struct  smtp_cmd) );
-    
-    rc = smtp_readln( s, buf, sizeof( buf ) );
-    if ( rc < 0) {
-        return NULL;
-    }
-
-    debug("smtp_readcmd: <%s>", buf );
-
-    cmd.argv = malloc( sizeof ( cmd.argv ) * 10);
-
-    ap = strsep( &p , " \t");
-
-    cmd.command = malloc( strlen(ap) );
-    strcpy( cmd.command, ap );
-
-    while( p != NULL && *p == ' ')
-        p++;
-
-    for ( i = 0;  (ap = strsep( &p, " ")) != NULL ; i++ ) {
-        cmd.argv[i] = malloc( strlen(ap) );
-        strcpy( cmd.argv[i], ap);
-
-        while( p != NULL && *p == ' ')
-            p++;
-
-        cmd.argc++;
-
-    }
-
-    return &cmd;
-}
-
-struct smtp_resp *
-smtp_readreply( int s ) {
-    static struct smtp_resp resp;
-    
-    char buf[1500];
-    char *p = buf;
-    char *code_start = NULL;
-    int rc;
-
-    bzero( &resp, sizeof(struct smtp_resp));
-
-    // debug("smtp_readreply: enter");
-    rc = smtp_readln( s, buf, sizeof( buf ) );
-    if ( rc < 0) {
-        return NULL;
-    }
-    if ( rc == 0 ) {
-        debug("eof");
-    }
-    debug("smtp_readreply: %s", buf);
-    
-    resp.code = 0;
-    resp.text = NULL;
-
-    while( !isdigit( *p) && (*p != NULL) ) 
-        p++;
-
-    if ( *p == 0 ) {
-        error("no digits found in smtp reply");
-        return NULL;
-    }
-
-    code_start = p;
-
-    while( isdigit ( *p ) && (*p != NULL) )
-        p++;
-
-    if ( *p == '-' ) {
-        resp.cont = 1;
-    }
-    
-    if ( *p == ' ' || *p == '-' ) {
-        *p = 0;
-        p++;
-        resp.code = atoi( code_start );
-    }
-    
-    // debug("text_start: <%s>", p );
-
-    resp.text = malloc(strlen(p) + 1); 
-    if ( resp.text == NULL ) {
-        Perror("malloc");
-        return NULL;
-    }
-    strncpy( resp.text, p, strlen(p)  );
-    resp.text[strlen(p)] = 0;
-
-    debug( "response: code [%d] text [%s]", resp.code, resp.text);
-
-    return &resp;
-}
-
-int smtp_putcmd( int s, struct smtp_cmd *cmd) {
-
-    char *b;
-    size_t need = 1;
-    int i;
-
-    if ( cmd == NULL || cmd->command == NULL ) {
-        error("smtp_putcmd: invalid argument");
-        return -1;
-    }
-
-    need += strlen( cmd->command );
-    for ( i = cmd->argc ; i; ) {
-        i--;
-        if ( cmd->argv[i] == NULL ) {
-            error("smtp_putcmd: invalid argument");
-            return -1;
-        }
-        need += strlen(cmd->argv[i]) + 1;
-    }
-    b = malloc( need );
-    if ( b == NULL ) {
-        Perror("malloc");
-    }
-
-    strcpy( b, cmd->command );
-
-    for ( i = 0; i < cmd->argc; i++ ) {
-        strcat( b, " ");
-        strcat( b, cmd->argv[i] );
-    }
-    debug("smtp_putcmd: <%s>", b);
-    return smtp_putline( s, b ) <= 0;
-}
-
-struct mem_chunk {
-    void *b;
-    size_t size;
-    struct mem_chunk *next;
-};
-
-struct mem_chunk *
-chunk_add(  void *buf, size_t len ) {
-    struct mem_chunk *chunk = NULL;
-
-    if( (chunk = malloc(sizeof(struct mem_chunk))) == NULL ) {
-        error("chunk_add: malloc failed");
-        return chunk;
-    }
-
-    bzero( chunk, sizeof(struct mem_chunk) );
-
-    if ( len == 0 ) {
-        chunk->b = "";
-    }
-    else { 
-       chunk->b = malloc( len + 1 ); // trailing \0
-       chunk->size = len;
-       strncpy( chunk->b, buf, len + 1); 
-    }
-    return chunk;
-}
-
-struct mem_chunk *smtp_readdata( int s) {
-    char buf[1500];
-    int rc;
-
-    struct mem_chunk *root;
-    struct mem_chunk *next;
-    struct mem_chunk *prev;
-        
-    root = malloc( sizeof( struct mem_chunk ));
-    next = root;
-
-    while( 1 ) {
-        rc = smtp_readln( s, buf, sizeof( buf ) );
-        if ( rc < 0 ) {
-            Perror( "smtp_readdata");
-            return NULL;
-        }
-        debug( "smtp_readdata: %d %s", rc, buf );
-        
-        if ( rc == 1 && buf[0] == '.' ) {
-            debug( "root->b = <%s>", root->b);
-            return root;
-        }
-
-        if ( root == NULL ) {
-            root = chunk_add( buf, rc );
-            prev = root;
-        }
-        else {
-            prev->next = chunk_add( buf, rc );
-            prev = prev->next;
-        }
-        /*
-
-        if ( rc == 0 ) {
-            next->b = "";
-            next->size = 0;
-        }
-        else {
-          next->b = malloc( rc + 1 );
-          next->size = rc;
-          strncpy( next->b, buf, rc + 1); 
-        }
-        // debug( "next->b = <%s>", next->b);
-
-        next->next = malloc( sizeof(struct  mem_chunk ));
-        next = next->next;
-        */
-    }
-    return root;
 }
 
 int check_data( struct mem_chunk *root ) {
@@ -673,29 +206,6 @@ int check_data( struct mem_chunk *root ) {
 
     debug("checking data: size = %d val = <%s>", total, buf );
     return dw_scan( buf, total );
-}
-
-int smtp_putdata( int s, struct mem_chunk *root)  {
-    int rc;
-
-    if ( root == NULL ) {
-        debug("root == NULL");
-    }
-    while ( root != NULL ) {
-        if ( root->b == NULL ) {
-            debug("root->b == NULL");
-            break;
-        }
-        debug("putdate: putline = <%s>", root->b);
-        rc = smtp_putline( s, root->b );
-        if ( rc < 0) {
-            Perror( "smtp_putdata");
-            return rc;
-        }
-        root = root->next;
-    }
-    smtp_putline( s, "." );
-    return 0;
 }
 
 void server( int ssrv ) {
@@ -946,6 +456,16 @@ int main (int argc, char **argv) {
         av_shutdown(1);
 
     notice("started");
+
+    if ( (drweb_ver = dw_getversion()) != -1 ) {
+        notice("drwebd %d.%d found", drweb_ver/100, drweb_ver % 100);
+    }
+
+    if ( (drweb_id = dw_getid()) != NULL ) {
+        notice("drwebd id = <%s>", drweb_id );
+    }
+
+    dw_getbaseinfo();
 
     main_loop();
 

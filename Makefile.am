@@ -14,5 +14,5 @@ INCLUDES = -I.
 LDADD = libutils.a
 
 noinst_LIBRARIES = libutils.a
-libutils_a_SOURCES =  log.c daemon.c drweb.c
-noinst_HEADERS= daemon.h log.h drweb.h
+libutils_a_SOURCES =  log.c daemon.c drweb.c readcfg.c sock.c smtp.c
+noinst_HEADERS= daemon.h log.h drweb.h readcfg.h sock.h smtp.h

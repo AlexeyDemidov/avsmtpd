@@ -8,15 +8,6 @@
  *
  */
 
-int dw_init( const char *addr );
-int dw_shutdown();
-
-void dw_getversion();
-void dw_getid();
-void dw_getbaseinfo();
-
-int  dw_scan( void *data, size_t len );
-
 // Dr. Web daemon commands:
 #define DRWEBD_SCAN_CMD         0x0001
 #define DRWEBD_VERSION_CMD      0x0002
@@ -51,5 +42,16 @@ int  dw_scan( void *data, size_t len );
 
 #define DERR_VIRUS \
   (DERR_KNOWN_VIRUS|DERR_UNKNOWN_VIRUS|DERR_VIRUS_MODIFICATION)
+
+int    dw_init( const char *addr );
+int    dw_shutdown();
+
+int    dw_getversion();
+char  *dw_getid();
+void   dw_getbaseinfo();
+
+int    dw_scan( void *data, size_t len );
+
+extern char *drwebd_addr;
 
 #endif /* __DRWEB_H */
