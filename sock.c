@@ -1,8 +1,11 @@
 /*
- * $Id: sock.c,v 1.5 2003-02-23 11:59:33 alexd Exp $
+ * $Id: sock.c,v 1.6 2003-02-23 15:50:17 alexd Exp $
  * 
  * $Log: sock.c,v $
- * Revision 1.5  2003-02-23 11:59:33  alexd
+ * Revision 1.6  2003-02-23 15:50:17  alexd
+ * fix bug, where lastchar in buffer = '\r'
+ *
+ * Revision 1.5  2003/02/23 11:59:33  alexd
  * added vsock_write, vsock_{i|o}flush
  *
  * Revision 1.4  2003/02/23 07:26:08  alexd
@@ -432,6 +435,7 @@ char *smtp_get( vsock_t *vsock ) {
             } 
             else  {
                 debug("last char is '\\r'");
+                eolptr = NULL;
                 lastchar = '\r'; /* found CR, but it last char in buf*/
                 break;           /* should check next buffer */
             }
