@@ -4,10 +4,13 @@
  */
 
 /*
- *  $Id: readcfg.c,v 1.1 2003-02-17 01:22:48 alexd Exp $
+ *  $Id: readcfg.c,v 1.2 2003-02-17 20:42:53 alexd Exp $
  *
  *  $Log: readcfg.c,v $
- *  Revision 1.1  2003-02-17 01:22:48  alexd
+ *  Revision 1.2  2003-02-17 20:42:53  alexd
+ *  some more clean up
+ *
+ *  Revision 1.1  2003/02/17 01:22:48  alexd
  *  moved some functions to smtp.c sock.c
  *
  *  Revision 1.3  2001/03/24 17:51:05  alexd
@@ -30,8 +33,10 @@
 #include "readcfg.h"
 #include "log.h"
 
-const static char *rcsid = "$Id: readcfg.c,v 1.1 2003-02-17 01:22:48 alexd Exp $";
-const static char *revision = "$Revision: 1.1 $";
+#ifndef lint
+static const char *rcsid = "$Id: readcfg.c,v 1.2 2003-02-17 20:42:53 alexd Exp $";
+static const char *revision = "$Revision: 1.2 $";
+#endif
 
 
 int getvarstr( var_t *key , const char *str) {

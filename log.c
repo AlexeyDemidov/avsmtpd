@@ -4,10 +4,13 @@
  */
 
 /*
- *  $Id: log.c,v 1.2 2003-02-17 01:55:37 alexd Exp $
+ *  $Id: log.c,v 1.3 2003-02-17 20:42:53 alexd Exp $
  *
  *  $Log: log.c,v $
- *  Revision 1.2  2003-02-17 01:55:37  alexd
+ *  Revision 1.3  2003-02-17 20:42:53  alexd
+ *  some more clean up
+ *
+ *  Revision 1.2  2003/02/17 01:55:37  alexd
  *  some lint cleanup
  *
  *  Revision 1.1.1.1  2003/02/16 16:44:08  alexd
@@ -47,8 +50,8 @@
 #include "log.h"
 
 #ifndef lint
-const static char *rcsid = "$Id: log.c,v 1.2 2003-02-17 01:55:37 alexd Exp $";
-const static char *revision = "$Revision: 1.2 $";
+static const char *rcsid = "$Id: log.c,v 1.3 2003-02-17 20:42:53 alexd Exp $";
+static const char *revision = "$Revision: 1.3 $";
 #endif
 
 static int syslog_init = 0;

@@ -55,7 +55,7 @@ int dw_close( int s) {
 }
 
 int dw_write( int s, void *buf, size_t len ) {
-    int rc;
+    size_t rc;
     debug("dw_write: sending %d bytes to drwebd", len);
 
     rc = send( s, buf, len, 0 );
@@ -81,7 +81,7 @@ int dw_readint( int s, int *value ) {
 char *dw_readline( int s) {
     char   *str;
     size_t  len;
-    int     rc;
+    size_t  rc;
 
     rc = dw_readint( s, (int *)&len );
     if ( rc ) {

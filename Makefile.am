@@ -5,7 +5,7 @@ AUTOMAKE_OPTIONS = foreign
 
 EXTRA_DIST = TODO VERSION 
 
-CFLAGS=-Wall -g
+CFLAGS=-Wall -W -Wno-unused -D_ISOC99_SOURCE -D_GNU_SOURCE  -g
 
 sbin_PROGRAMS = avsmtpd
 avsmtpd_SOURCES = avsmtpd.c
