@@ -5,10 +5,13 @@
  */
 
 /*
- *   $Id: drweb.c,v 1.6 2003-02-23 07:25:11 alexd Exp $
+ *   $Id: drweb.c,v 1.7 2003-02-23 12:01:25 alexd Exp $
  *
  *   $Log: drweb.c,v $
- *   Revision 1.6  2003-02-23 07:25:11  alexd
+ *   Revision 1.7  2003-02-23 12:01:25  alexd
+ *   change <config.h> to "config.h"
+ *
+ *   Revision 1.6  2003/02/23 07:25:11  alexd
  *   new sock_write syntax
  *
  *   Revision 1.5  2003/02/22 18:34:26  alexd
@@ -29,7 +32,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <config.h>
+#include "config.h"
 
 #include "drweb.h"
 #include "log.h"
