@@ -4,10 +4,13 @@
  */
 
 /*
- *  $Id: readcfg.c,v 1.2 2003-02-17 20:42:53 alexd Exp $
+ *  $Id: readcfg.c,v 1.3 2003-02-22 18:30:22 alexd Exp $
  *
  *  $Log: readcfg.c,v $
- *  Revision 1.2  2003-02-17 20:42:53  alexd
+ *  Revision 1.3  2003-02-22 18:30:22  alexd
+ *  added dmalloc.h
+ *
+ *  Revision 1.2  2003/02/17 20:42:53  alexd
  *  some more clean up
  *
  *  Revision 1.1  2003/02/17 01:22:48  alexd
@@ -30,12 +33,18 @@
 #include <string.h>
 #include <ctype.h>
 
+#include "config.h"
+
+#ifdef HAVE_DMALLOC_H
+#include "dmalloc.h"
+#endif
+
 #include "readcfg.h"
 #include "log.h"
 
 #ifndef lint
-static const char *rcsid = "$Id: readcfg.c,v 1.2 2003-02-17 20:42:53 alexd Exp $";
-static const char *revision = "$Revision: 1.2 $";
+static const char *rcsid = "$Id: readcfg.c,v 1.3 2003-02-22 18:30:22 alexd Exp $";
+static const char *revision = "$Revision: 1.3 $";
 #endif
 
 
