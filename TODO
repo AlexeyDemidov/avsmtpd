@@ -2,8 +2,10 @@
     timeouts on connection/read/write
   *   select
   *   poll
-  ! accept variable length lines
-  ! buffers for each connection
+  * accept variable length lines
+  * buffers for each connection
+  !   buffered output
+  !   packet drweb commands
     support null in smtp sream
   * socket connect/accept routines
   * fork server
