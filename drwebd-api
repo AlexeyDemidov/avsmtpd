@@ -1,0 +1,191 @@
+--[ Protocol ]---------------------------------------------------------------
+
+The protocol of interaction with the daemon is described as follows:
+
+ - create the socket
+ - install the connection with the daemon
+ - write the COMMAND ( int ) to the socket
+ - write ADDITIONAL DATA to the socket, if needed
+ - read the ANSWER from the socket
+ - close the socket
+
+ The procedures of getting information on the socket type used by the
+ daemon, of defining the Unix socket name, the TCP port, of connecting
+ with the daemon, of giving commands to the daemon and of reading the
+ answers are in the drwebdc-tools.c file and are used in all the demo
+ examples. The used function prototypes, the data prototypes and the
+ constant specification prototypes are in the drwebdc.h file. All data of
+ the int type should be transmitted to the daemon in the network format
+ (to convert use the htonl( ...) function), from the daemon they are read
+ also in the network format (to convert into host-based format use the
+ ntohl( ... ) function).
+
+----[ DRWEBD_VERSION_CMD command ]-------------------------------------------
+
+  Assignment: get the daemon version.
+
+  Additional data: no.
+
+  Return: the value ( int ) containing the packed daemon version and
+          subversion:
+
+          answer = ntohl( answer );
+          int version = answer / 100;
+          int subversion = answer % 100;
+
+  Example: cliends/demo/drwebdc-ex1.c
+
+----[ DRWEBD_IDSTRING_CMD command ]------------------------------------------
+
+  Assignment: get the daemon identification line.
+
+  Additional data: no.
+
+  Return: line length ( int ) and the line itself postfixed with the
+          0-code character.
+
+  Example: cliends/demo/drwebdc-ex2.c
+
+----[ DRWEBD_BASEINFO_CMD command ]------------------------------------------
+
+  Assignment: get information on the loaded virus bases.
+
+  Additional data: no.
+
+  Return: the number of bases ( int ) and information on the bases in the
+          following format { file name length ( int ), file name
+          postfixed with the 0-code character, number of viruses ( int ) }.
+
+  Example: cliends/demo/drwebdc-ex3.c
+
+----[ DRWEBD_SCANFILE_CMD command ]------------------------------------------
+
+  Assignment: check the data for viruses.
+
+  Additional data: FLAGS ( int ), file name length ( int ), file name,
+                   file length ( int ), file body
+
+                   OR
+
+                   FLAGS ( int ), int = 0, file length ( int ), file body
+
+                   OR
+
+                   FLAGS ( int ), file name length ( int ), file name,
+                   int = 0
+
+                   (used for file check in read-only partitions;
+                   significantly quickens the check and reduces memory
+                   consumption; file name here should contain the whole
+                   path from the root directory)
+
+  Return: completion code ( int ), additional data (if the corresponding
+          flags are marked).
+
+  Flags:
+
+    DRWEBD_RETURN_VIRUSES: return the number of the viruses, virus
+                           modifications or suspicious objects detected
+                           ( int ) and, if is not the zero number,
+                           information about virus names and suspicious
+                           objects types in the following format { line
+                           length ( int ), line postfixed with the
+                           0-code character }.
+
+           Example: infected with EICAR Test File (NOT a Virus!)
+                    possibly infected with COM.TSR Virus
+
+    DRWEBD_RETURN_REPORT: return the number of the lines recorded into
+                          the log during the given object check ( int )
+                          and, if is not the zero number, log lines in
+                          the following format line length ( int ), line
+                          postfixed with the 0-code character }.
+
+           Example: test.zip - archive PKZIP
+                    >test.zip/test.txt - Ok
+                    >test.zip/test.doc - Ok
+
+    DRWEBD_RETURN_CODES: return the extended information on the scanning
+                         results; the data returns in the following
+                         format: the number of pairs { code - value } ( int ),
+                         pairs { code - value } ( int ).
+
+           Example: 2                        // number  of  pairs
+                    DERR_KNOWN_VIRUS, 1      // 1 file infected with the
+                                             // known virus
+                    DERR_TOO_COMPRESSED, 2   // 2 files have invalid
+                                             // compression rate
+
+    DRWEBD_HEURISTIC_ON: enable heuristic analyzer for the objects being
+                         checked
+
+    Irrespective of the order DRWEBD_RETURN_VIRUSES, DRWEBD_RETURN_REPORT
+    or DRWEBD_RETURN_CODES flags are indicated among the flags,
+    additional information will always go as follows:
+
+       virus and virus modification identificators and suspicious object
+       types ( for the DRWEBD_RETURN_VIRUSES flag )
+
+       log lines ( for the DRWEBD_RETURN_REPORT flag )
+
+       extended return codes ( for the DRWEBD_RETURN_CODES flag )
+
+  Example: cliends/demo/drwebdc-demo.c ( function showResult() )
+
+----[ All the commands ]-----------------------------------------------------
+
+An example of how to use all the described commands you can find in the
+cliends/demo/drwebdc-demo.c file. The drwebdc program can be started 
+with the following command line keys:
+
+  -fFILE         scan the FILE file; if there is no file name after the -f key
+                 the program will receive data from the standard input stream
+                 (STDIN)
+
+  -bfFILE        specify the file name  - daemon busy flag
+
+  -sfUNIX_SOCKET specify the Unix socket name, different from the default
+                 one ( /var/run/drwebd ); use the specified Unix socket
+                 and ignore the information the PID file contains.
+
+  -pPORT         specify the TCP port number, different from the default one
+                 ( 3000 ); use the TCP socket and ignore the information
+                 the PID file contains.
+
+  -iIP_ADDRESS   specify the IP address, different from the default one
+                 ( 127.0.0.0 ); use the TCP socket and ignore the
+                 information the PID file contains.
+
+  -tTIMEOUT      specify the timeout to read the socket, different from the
+                 default one ( 40 seconds )
+
+  -ex            always extend the file name, specified in the -f key, adding
+                 the whole path from the root; used to check files in the
+                 read-only (for the daemon) partitions; significantly
+                 reduces memory requirements and quickens the check
+
+  -sb            view information on the loaded virus bases
+
+  -si            view the Dr. Web daemon identification line
+
+  -sv            view the Dr. Web daemon version
+
+  -rv            after scanning view the list of the viruses, virus
+                 modifications and suspicious object types detected
+
+  -rr            after having scanned the data view the log lines formed
+                 by Dr. Web daemon during the object check
+
+  -rc            return the set of the extended completion codes
+
+  -q             cancel the data output to the console
+
+--[ Contacts ]---------------------------------------------------------------
+
+ID Antivirus Lab   http://www.drweb.ru
+http://www.drweb.ru/unix/forum
+http://www.drweb.ru/unix
+Please feel free to send your comments and wishes 
+to Vsevolod Lutovinov <vla@drweb.ru>
+
+-----------------------------------------------------------------------------

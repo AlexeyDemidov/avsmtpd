@@ -1,0 +1,16 @@
+redo I/O routines.
+  timeouts
+  accept variable length lines
+  buffers for each connection
+  socket connect/accept routines
+  fork server
+logging  
+config file  
+access list
+  connect
+  recepient
+  bounce
+
+bounce
+  templates
+Received: should be optional
