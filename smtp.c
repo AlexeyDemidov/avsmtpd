@@ -1,9 +1,12 @@
 
 /*
- *   $Id: smtp.c,v 1.4 2003-02-23 07:24:32 alexd Exp $
+ *   $Id: smtp.c,v 1.5 2003-02-23 12:00:59 alexd Exp $
  *
  *   $Log: smtp.c,v $
- *   Revision 1.4  2003-02-23 07:24:32  alexd
+ *   Revision 1.5  2003-02-23 12:00:59  alexd
+ *   smtp_putline: add flush, check for buffer len
+ *
+ *   Revision 1.4  2003/02/23 07:24:32  alexd
  *   replace sock_ I/O functions with vsock_
  *
  *   Revision 1.3  2003/02/22 18:39:59  alexd
@@ -186,16 +189,20 @@ int smtp_putline( vsock_t *s, char *b ) {
 
     debug("smtp_putline: <%s>", b);
 
-    rc = vsock_write( s, b, len);
-    if ( rc < 0 ) {
-        Perror("write");
-        return rc;
+    if ( len > 0 ) {
+        rc = vsock_write( s, b, len);
+        if ( rc < 0 ) {
+            Perror("write");
+            return rc;
+        }
     }
+
     rc = vsock_write( s, "\r\n", 2);
     if ( rc < 0 ) {
         Perror("write");
         return rc;
     }
+    vsock_oflush( s );
     return rc;
 }
 
