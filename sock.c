@@ -1,8 +1,11 @@
 /*
- * $Id: sock.c,v 1.7 2003-03-01 19:17:07 alexd Exp $
+ * $Id: sock.c,v 1.8 2003-03-01 19:49:33 alexd Exp $
  * 
  * $Log: sock.c,v $
- * Revision 1.7  2003-03-01 19:17:07  alexd
+ * Revision 1.8  2003-03-01 19:49:33  alexd
+ * replace notice(connected) with similar debug()
+ *
+ * Revision 1.7  2003/03/01 19:17:07  alexd
  * fix double calls to parse_addr
  *
  * Revision 1.6  2003/02/23 15:50:17  alexd
@@ -522,7 +525,7 @@ int sock_connect( const char *addr) {
             Perror("fcntl");
             return -1;
         }
-        notice("connected to %s", addr );
+        debug("connected to %s", addr );
         return s;
     }
 
@@ -548,7 +551,7 @@ int sock_connect( const char *addr) {
             Perror("fcntl");
             return -1;
         }
-        notice("connected to %s", addr );
+        debug("connected to %s", addr );
         return s;
     }
     else {
@@ -558,7 +561,7 @@ int sock_connect( const char *addr) {
 
     
 #else
-    notice("connected to %s", addr );
+    debug("connected to %s", addr );
 #endif 
     return s;
 }
