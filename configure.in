@@ -3,6 +3,11 @@ AC_INIT(avsmtpd.c)
 AM_INIT_AUTOMAKE(avsmtpd, 0.1)
 AM_CONFIG_HEADER(config.h)
 
+LDFLAGS=-L/usr/local/lib
+INCLUDES=-I/usr/local/include
+
+AM_WITH_DMALLOC
+
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_INSTALL
@@ -12,8 +17,9 @@ AC_PROG_RANLIB
 # Checks for header files.
 AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
+AC_HEADER_TIME
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h netinet/in.h stdlib.h string.h sys/socket.h sys/time.h syslog.h unistd.h])
-AC_CHECK_HEADERS([limits.h netdb.h])
+AC_CHECK_HEADERS([limits.h netdb.h poll.h dmalloc.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -27,7 +33,7 @@ AC_FUNC_FORK
 AC_FUNC_MALLOC
 AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
-AC_CHECK_FUNCS([bzero dup2 gethostbyname  getrlimit socket strerror])
+AC_CHECK_FUNCS([bzero dup2 gethostbyname getrlimit poll select socket strerror])
 AC_CHECK_FUNCS([strncasecmp strcasecmp strdup strchr strrchr strstr strtol])
 
 AC_OUTPUT([Makefile])

@@ -6,6 +6,9 @@
 /* Define to 1 if you have the `bzero' function. */
 #undef HAVE_BZERO
 
+/* Define to 1 if you have the <dmalloc.h> header file. */
+#undef HAVE_DMALLOC_H
+
 /* Define to 1 if you have the `dup2' function. */
 #undef HAVE_DUP2
 
@@ -38,6 +41,15 @@
 
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #undef HAVE_NETINET_IN_H
+
+/* Define to 1 if you have the `poll' function. */
+#undef HAVE_POLL
+
+/* Define to 1 if you have the <poll.h> header file. */
+#undef HAVE_POLL_H
+
+/* Define to 1 if you have the `select' function. */
+#undef HAVE_SELECT
 
 /* Define to 1 if you have the `socket' function. */
 #undef HAVE_SOCKET
@@ -138,11 +150,17 @@
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
+/* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
+#undef TIME_WITH_SYS_TIME
+
 /* Define to 1 if your <sys/time.h> declares `struct tm'. */
 #undef TM_IN_SYS_TIME
 
 /* Version number of package */
 #undef VERSION
+
+/* Define if using the dmalloc debugging malloc package */
+#undef WITH_DMALLOC
 
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const
