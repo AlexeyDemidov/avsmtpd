@@ -4,10 +4,13 @@
  */
 
 /*
- *  $Id: log.c,v 1.4 2003-02-22 18:32:19 alexd Exp $
+ *  $Id: log.c,v 1.5 2003-02-23 07:22:56 alexd Exp $
  *
  *  $Log: log.c,v $
- *  Revision 1.4  2003-02-22 18:32:19  alexd
+ *  Revision 1.5  2003-02-23 07:22:56  alexd
+ *  по умолчанию не писать в файл.
+ *
+ *  Revision 1.4  2003/02/22 18:32:19  alexd
  *  added dmalloc.h
  *  replace fprintf("") with fputs
  *  replace vsyslog with vprintf && syslog
@@ -61,12 +64,12 @@
 #endif
 
 #ifndef lint
-static const char *rcsid = "$Id: log.c,v 1.4 2003-02-22 18:32:19 alexd Exp $";
-static const char *revision = "$Revision: 1.4 $";
+static const char *rcsid = "$Id: log.c,v 1.5 2003-02-23 07:22:56 alexd Exp $";
+static const char *revision = "$Revision: 1.5 $";
 #endif
 
 static int syslog_init = 0;
-static char *logfile = 0;
+static char *logfile = NULL;
 
 /* FIXME: prog name */
 extern char *program; 
@@ -74,7 +77,8 @@ extern char *program;
 void initlog(const char *a_program, int facility, const char *a_logfile)
 {
     program = strdup(a_program);
-    logfile = strdup(a_logfile);
+    if ( logfile != NULL) 
+        logfile = strdup(a_logfile);
 
     openlog(program, LOG_CONS | LOG_PID, facility);
     syslog_init = 1;
@@ -86,7 +90,8 @@ void shutdownlog()
 
     syslog_init = 0;
 
-    free(logfile);
+    if ( logfile != NULL ) 
+        free(logfile);
     free(program);
 
     logfile = program = NULL;
@@ -110,7 +115,7 @@ static void vmessage(int loglevel, const char *format, va_list ap)
 #endif
     }
 
-    if (logfile || !daemon_mode) {
+    if (logfile != NULL || !daemon_mode) {
 	/* FIXME: %m format */
 	char str[BUFSIZE];
 	char timestamp[BUFSIZE];
@@ -142,7 +147,7 @@ static void vmessage(int loglevel, const char *format, va_list ap)
         
     }
 
-    if (logfile) {
+    if (logfile != NULL) {
 	FILE *log;
 
         if ( geteuid() != 0 ) 
