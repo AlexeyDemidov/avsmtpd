@@ -5,10 +5,13 @@
  */
 
 /*
- *   $Id: drweb.c,v 1.7 2003-02-23 12:01:25 alexd Exp $
+ *   $Id: drweb.c,v 1.8 2003-03-01 19:49:59 alexd Exp $
  *
  *   $Log: drweb.c,v $
- *   Revision 1.7  2003-02-23 12:01:25  alexd
+ *   Revision 1.8  2003-03-01 19:49:59  alexd
+ *   report real address when connection to drwebd failed
+ *
+ *   Revision 1.7  2003/02/23 12:01:25  alexd
  *   change <config.h> to "config.h"
  *
  *   Revision 1.6  2003/02/23 07:25:11  alexd
@@ -154,7 +157,7 @@ int  dw_getversion() {
     int rc;
 
     if ( (s = dw_open( drwebd_addr )) < 0) {
-        error("can't open connection to drwebd at localhost:3000");
+        error("dw_getversion: can't open connection to drwebd at %s", drwebd_addr);
         return -1;
     }
 
@@ -183,7 +186,7 @@ char *dw_getid() {
     char *id_str;
 
     if ( (s = dw_open( drwebd_addr )) < 0) {
-        error("dw_getid: can't open connection to drwebd at localhost:3000");
+        error("dw_getid: can't open connection to drwebd at %s", drwebd_addr);
         return NULL;
     }
 
@@ -218,7 +221,7 @@ void dw_getbaseinfo() {
     char *id_str;
 
     if ( (s = dw_open( drwebd_addr )) < 0) {
-        error("dw_getbaseinfo: can't open connection to drwebd at localhost:3000");
+        error("dw_getbaseinfo: can't open connection to drwebd at %s", drwebd_addr );
         return ;
     }
 
