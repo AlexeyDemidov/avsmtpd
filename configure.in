@@ -33,8 +33,9 @@ AC_FUNC_FORK
 AC_FUNC_MALLOC
 AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
-AC_CHECK_FUNCS([bzero dup2 gethostbyname getrlimit poll select socket strerror])
-AC_CHECK_FUNCS([strncasecmp strcasecmp strdup strchr strrchr strstr strtol])
+AC_CHECK_FUNCS([bzero dup2 getrlimit setproctitle poll select socket strerror])
+AC_CHECK_FUNCS([memchr strncasecmp strcasecmp strdup strchr strrchr strstr strtol])
+AC_CHECK_FUNCS([inet_ntoa gethostbyaddr gethostbyname])
 
 AC_OUTPUT([Makefile])
 # [chmod +x automake aclocal])
