@@ -1,0 +1,59 @@
+.TH "avsmtpd" "8" "0.0.1" "Alex L. Demidov" "8"
+.SH "NAME"
+.LP 
+avsmtpd \- simple filtering SMTP proxy 
+.SH "SYNTAX"
+.LP 
+avsmtpd [\-b addr[:port]] [\-f addr[:port]] [\-w addr[:port]] [\-t timeout] [\-l logfile] [\-p pidfile] [\-n] [\-d] [\-v] [\-V] 
+.SH "DESCRIPTION"
+.LP 
+This program does some very neat things.
+.SH "OPTIONS"
+.LP 
+.TP 
+\fB\-b \fIaddr[:port]\fP\fR 
+listen on specified <\fIaddr:port\fP>.
+.TP 
+\fB\-f \fIaddr[:port]\fP\fR
+forward SMTP connection to <\fIaddr:port\fP>.
+.TP 
+\fB\-w \fIaddr[:port]\fP\fR
+connect to drwebd on <\fIaddr:port\fP>.
+.TP 
+\fB\-t <\fItimeout\fP>\fR
+set I/O timeout value to <\fItimeout\fP>
+.TP 
+\fB\-l <\fIlogfile\fP>\fR
+write log to file pointed by <\fIlogfile\fP>
+.TP 
+\fB\-p \fIpidfile\fP\fR
+write program PID to file named <\fIpidfile\fP>
+.TP 
+\fB\-n\fR
+dont realy check message content
+.TP 
+\fB\-d\fR
+debug mode
+.TP 
+\fB\-v\fR
+verbose mode
+.TP 
+\fB\-V\fR
+show program version
+.TP 
+\fB\-\-help\fR
+Output help information and exit.
+.TP 
+\fB\-\-version\fR
+Output version information and exit.
+.SH "FILES"
+.LP 
+\fI/var/run/avsmtpd.pid\fP 
+.br 
+\fI/var/log/avsmtpd.log\fP 
+.SH "AUTHORS"
+.LP 
+Alex L. Demidov <alexd@vinf.ru>
+.SH "SEE ALSO"
+.LP 
+postfix(1)
