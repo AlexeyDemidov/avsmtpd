@@ -1,8 +1,12 @@
 /*
- *   $Id: avsmtpd.c,v 1.8 2003-03-01 19:09:27 alexd Exp $
+ *   $Id: avsmtpd.c,v 1.9 2003-03-01 19:52:01 alexd Exp $
  *
  *   $Log: avsmtpd.c,v $
- *   Revision 1.8  2003-03-01 19:09:27  alexd
+ *   Revision 1.9  2003-03-01 19:52:01  alexd
+ *   don't call drweb funcs if no_check
+ *   preper address extracting from MAIL FROM:
+ *
+ *   Revision 1.8  2003/03/01 19:09:27  alexd
  *   fixed bug with gethostbyaddr
  *
  *   Revision 1.7  2003/03/01 12:50:57  alexd
@@ -183,6 +187,9 @@ void main_loop() {
             }
             else {
 #endif                
+#ifdef HAVE_SETPROCTITLE                
+                setproctitle(" server %s[%s]", peer_name, peer_addr );
+#endif
                 server( ssrv );
 #ifndef NO_FORK
                 exit(0);
@@ -193,6 +200,7 @@ void main_loop() {
     } while(1);
 }
 
+/* should return 0 on success, 1 on detected virus, -1 on error */
 int check_data( struct mem_chunk *root ) {
 
     struct mem_chunk *next = root;
@@ -325,8 +333,12 @@ void server( vsock_t *ssrv ) {
                 free( mail_from );
                 mail_from = NULL;
             }
-            if ( cmd->argv[0] != NULL) 
-                mail_from = strdup(cmd->argv[0]);
+            if ( cmd->argv[0] != NULL) {
+                char *p;
+                if ( (p = strchr(cmd->argv[0], ':')) != NULL ) { 
+                    mail_from = strdup( p + 1 );
+                }
+            }
         }
         if ( strcasecmp(cmd->command, "DATA") == NULL ) {
             struct mem_chunk *data;
@@ -518,15 +530,20 @@ int main (int argc, char **argv) {
 
     notice("started");
 
-    if ( (drweb_ver = dw_getversion()) != -1 ) {
+    if ( !no_check && (drweb_ver = dw_getversion()) != -1 ) {
         notice("drwebd %d.%d found", drweb_ver/100, drweb_ver % 100);
     }
+    else {
+        no_check = 1;
+    }
 
-    if ( (drweb_id = dw_getid()) != NULL ) {
+    if ( !no_check && (drweb_id = dw_getid()) != NULL ) {
         notice("drwebd id = <%s>", drweb_id );
     }
 
-    dw_getbaseinfo();
+    if ( !no_check ) {
+        dw_getbaseinfo();
+    }
 
     main_loop();
 
