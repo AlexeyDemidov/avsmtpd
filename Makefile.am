@@ -3,10 +3,11 @@ PACKAGE = avsmtpd
 
 AUTOMAKE_OPTIONS = foreign
 
-EXTRA_DIST = TODO VERSION 
+EXTRA_DIST = TODO VERSION $(man_MANS)
 
-CFLAGS=-Wall -W -Wno-unused -D_ISOC99_SOURCE -D_GNU_SOURCE  -pipe -g
+CFLAGS=-Wall -W -Wno-unused -DDMALLOC_DISABLE -D_ISOC99_SOURCE -D_GNU_SOURCE -pipe -g 
 
+man_MANS = avsmtpd.8
 sbin_PROGRAMS = avsmtpd
 avsmtpd_SOURCES = avsmtpd.c
 DEPENDENCIES = libutils.a
