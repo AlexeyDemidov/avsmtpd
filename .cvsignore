@@ -19,3 +19,6 @@ stamp-h
 stamp-h1
 virus.msg
 logfile
+cxref
+gprof.out
+avsmtpd.gmon
