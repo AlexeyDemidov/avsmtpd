@@ -1,34 +1,35 @@
-  redo I/O routines.
-    timeouts on connection/read/write
-  *   select
-  *   poll
-  * accept variable length lines
-  * buffers for each connection
-  !   buffered output
-  !   packet drweb commands
-    support null in smtp sream
-  * socket connect/accept routines
-  * fork server
+version 0.2
+  drweb I/O with vsock
+  porper drweb reporting
+  debug ( FACILTY )
+  config file
+  received should be optional
+    check loop
+  proper signal handling
+  proper startup/shutdown
+  print proper usage
+  X-avfilter: clean
 
-  FSM for smtp
-  parsing commands/replys
-  parsing extended result codes
-* malloc debug
-    rewrite some routines (strdup)
+version 0.3 (public)
+  write full man page
+  bounces
+    rfc3464
+    templates
+  access list
+    connect
+    recepient
+    bounce
 
-logging  
-  debug( FACILTY )
-config file  
-access list
-  connect
-  recepient
-  bounce
+version 0.4
+  support null in smtp stream
+  full support for PIPELINING
+  FSM for SMTP
+    parsing commands/replyes
+    extended result codes
 
-bounce
-  templates
-Received: should be optional
-setproctitle
-signal handling
-cleanup when shutting down
-LMTP protocol support
-  AUTH suport
+version 0.5
+  modular content checkers
+  quarantine messages
+  LMTP support
+    AUTH suport
+
