@@ -1,8 +1,11 @@
 /*
- * $Id: sock.c,v 1.6 2003-02-23 15:50:17 alexd Exp $
+ * $Id: sock.c,v 1.7 2003-03-01 19:17:07 alexd Exp $
  * 
  * $Log: sock.c,v $
- * Revision 1.6  2003-02-23 15:50:17  alexd
+ * Revision 1.7  2003-03-01 19:17:07  alexd
+ * fix double calls to parse_addr
+ *
+ * Revision 1.6  2003/02/23 15:50:17  alexd
  * fix bug, where lastchar in buffer = '\r'
  *
  * Revision 1.5  2003/02/23 11:59:33  alexd
@@ -470,7 +473,8 @@ int isconnected( int s, fd_set *rd, fd_set *wr, fd_set *ex ) {
 
 int sock_connect( const char *addr) {
 
-    struct sockaddr peer;
+    struct sockaddr   peer;
+    struct sockaddr *ppeer;
     int s;
 
 #if HAVE_SELECT
@@ -483,10 +487,10 @@ int sock_connect( const char *addr) {
     
     bzero( &peer,  sizeof (peer));
 
-    if ( parse_addr( addr ) == NULL ) {
+    if ( (ppeer = parse_addr( addr )) == NULL ) {
         return -1;
     }
-    memcpy( &peer, parse_addr( addr ), sizeof(peer) );
+    memcpy( &peer, ppeer, sizeof(peer) );
 
     s = socket( AF_INET, SOCK_STREAM, 0);
     if ( s < 0 ) {
@@ -564,15 +568,16 @@ int sock_listen( const char *addr ) {
 
     const int on = 1;
 
-    struct sockaddr_in local;
+    struct sockaddr_in   local;
+    struct sockaddr    *plocal;
 
     bzero( &local, sizeof (local));
     
-    if ( parse_addr( addr ) == NULL ) {
+    if ( (plocal = parse_addr(addr)) == NULL ) {
         return -1;
     }
 
-    memcpy( &local, parse_addr( addr ), sizeof(local) );
+    memcpy( &local, plocal, sizeof(local) );
 
     s = socket( AF_INET, SOCK_STREAM, 0 );
 
@@ -605,7 +610,8 @@ int sock_listen( const char *addr ) {
  * UNIX /path/to/socket
  * 
  */
-struct sockaddr *parse_addr(const char *addr)
+
+struct sockaddr * parse_addr(const char *addr)
 {
     static struct sockaddr saddr;
     struct sockaddr_in *saddr_in = (struct sockaddr_in *) & saddr;
