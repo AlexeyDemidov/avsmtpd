@@ -1,8 +1,15 @@
 /*
- *   $Id: avsmtpd.c,v 1.3 2003-02-17 01:55:37 alexd Exp $
+ *   $Id: avsmtpd.c,v 1.4 2003-02-22 18:37:31 alexd Exp $
  *
  *   $Log: avsmtpd.c,v $
- *   Revision 1.3  2003-02-17 01:55:37  alexd
+ *   Revision 1.4  2003-02-22 18:37:31  alexd
+ *   added dmalloc.h
+ *   -n command line switch, don't check data content
+ *   use sock_listen, sock_connect functions
+ *   free allocated memory
+ *   add NO_FORK ifdef
+ *
+ *   Revision 1.3  2003/02/17 01:55:37  alexd
  *   some lint cleanup
  *
  *   Revision 1.2  2003/02/17 01:22:48  alexd
@@ -23,6 +30,9 @@
 #include <netinet/in.h>
 #include <errno.h>
 #include <signal.h>
+#include <time.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 
 #include "config.h"
 #include "log.h"
@@ -30,6 +40,10 @@
 #include "sock.h"
 #include "drweb.h"
 #include "smtp.h"
+
+#ifdef WITH_DMALLOC
+#include "dmalloc.h"
+#endif
 
 /*
  *
@@ -47,6 +61,7 @@ const char *logfile = "/tmp/avsmtpd.log";
 int daemon_mode  = 1;
 int debug_mode   = 0;
 int verbose_mode = 0;
+int no_check     = 0;
 
 int run_as_suid  = 0;
 
@@ -76,10 +91,10 @@ void sig_chld(int sig) {
     
     while ((child = waitpid(-1, &status, WNOHANG)) != 0) { 
         if (child == -1) { 
-            Perror("waitpid"); 
+            /* Perror("waitpid"); */
             break; 
         } 
-        notice("child process %d exited with status %d", 
+        debug("child process %d exited with status %d", 
                 child, WEXITSTATUS(status)); 
     } 
     signal(SIGCHLD, sig_chld);
@@ -93,89 +108,67 @@ void av_shutdown(int rc) {
         remove_pid_file(); 
     notice("shutdown"); 
     shutdownlog(); 
+    free( drweb_id );
+    if ( connect_to != NULL ) 
+        free( connect_to );
     exit(rc);
 }
 
 
 void main_loop() { 
-    int s, s1;
+    int s;
 
-    const int on = 1;
-
-    struct sockaddr_in local;
-    struct sockaddr_in peer;
-
-    bzero( &local, sizeof (local));
-    bzero( &peer,  sizeof (local));
-    
-    if ( parse_addr( bind_to ) == NULL ) {
-        return;
-    }
-    memcpy( &local, parse_addr( bind_to ), sizeof(local) );
-
-    s = socket( AF_INET, SOCK_STREAM, 0 );
-
-    if ( s < 0 ) {
-        Perror("socket");
-        return;
-    }
-
-    if ( setsockopt( s, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on))) {
-        Perror("setsockopt");
-        return;
-    }
-    
-    if ( bind( s,  (struct sockaddr *)&local, sizeof(local) )) {
-        Perror("bind");
-        return;
-    }
-
-    if ( listen( s, 1 ) ) {
-        Perror("listen");
-        return;
-    }
-
-    notice("listening on %s", bind_to );
+    s = sock_listen( bind_to );
 
     do {
+        int ssrv;
+        struct sockaddr_in peer;
         size_t peerlen = sizeof (peer);
-        s1 = accept( s, (struct sockaddr *)&peer, &peerlen);
+        pid_t pid;
 
-        if ( s1 < 0 ) {
+        struct hostent *hp;
+
+        char *peer_addr = NULL;
+        char *peer_name = NULL;
+        
+        bzero( &peer,  sizeof (peer));
+        
+        ssrv = accept( s, (struct sockaddr *)&peer, &peerlen);
+        if ( ssrv < 0 ) {
             Perror("accept");
             return;
         }
-        notice("client from localhost connected to %s", bind_to );
-        server( s1 );
+        peer_addr = inet_ntoa(peer.sin_addr);
+
+        debug("peerlen = %d", peerlen);
+        hp = gethostbyaddr((char *) &(peer.sin_addr), peerlen, AF_INET);
+        peer_name = (hp == NULL) ? "unknown" : hp->h_name;
+
+        if ( hp == NULL )
+            debug("server: %s", hstrerror(h_errno));
+
+        notice("client %s[%s] connected to %s", peer_name, peer_addr, bind_to );
+#ifndef NO_FORK 
+        if ( (pid = fork()) == -1) {
+            Perror("fork");
+            /* smtp reply? */
+            return ;
+        }
+        else {
+            if ( pid ) {
+                debug("child forked %d", pid);
+                close( ssrv );
+            }
+            else {
+#endif                
+                server( ssrv );
+#ifndef NO_FORK
+                exit(0);
+            }
+        }
+#endif
+        
     } while(1);
-}
-
-int client_connect() {
-
-    struct sockaddr_in peer;
-    int s;
-    
-    bzero( &peer,  sizeof (peer));
-
-    if ( parse_addr( connect_to ) == NULL ) {
-        return -1;
-    }
-    memcpy( &peer, parse_addr( connect_to ), sizeof(peer) );
-
-    s = socket( AF_INET, SOCK_STREAM, 0);
-
-    if ( s < 0 ) {
-        Perror("socket");
-        return -1;
-    }
-
-    if ( connect(s, (struct sockaddr *)&peer, sizeof (peer)) ) {
-        Perror("connect");
-        return -1;
-    }
-
-    notice("connected to %s", connect_to );
-    return s;
 }
 
 int check_data( struct mem_chunk *root ) {
@@ -184,6 +177,10 @@ int check_data( struct mem_chunk *root ) {
 
     char *buf, *p;
     size_t total = 0;
+    int rc = 0;
+
+    if ( no_check )
+        return 0;
 
     while ( next != NULL && next->b != NULL ) {
         total += next->size + 2;
@@ -195,6 +192,7 @@ int check_data( struct mem_chunk *root ) {
     
     if ( buf == NULL ) {
         Perror( "malloc");
+        return 0;
     }
     
     p = buf;
@@ -207,8 +205,12 @@ int check_data( struct mem_chunk *root ) {
         next = next->next;
     }
 
+    /*
     debug("checking data: size = %d val = <%s>", total, buf );
-    return dw_scan( buf, total );
+    */
+    rc = dw_scan( buf, total );
+    free( buf );
+    return rc;
 }
 
 void server( int ssrv ) {
@@ -220,7 +222,7 @@ void server( int ssrv ) {
 
     int sclnt;
 
-    if ( (sclnt = client_connect()) < 0 ) {
+    if ( (sclnt = sock_connect(connect_to)) < 0 ) {
         error( "Can't forward connection" );
 
         smtp_putreply( ssrv, 554, "Sorry, can't forward connection", 0 );
@@ -228,8 +230,10 @@ void server( int ssrv ) {
         while( (cmd = smtp_readcmd(ssrv)) != NULL ) {
             if ( strcasecmp(cmd->command, "QUIT") == NULL ) 
                 break;
+            free_smtp_cmd( cmd );
             smtp_putreply( ssrv, 503, "bad sequence of commands", 0 );
         }
+        free_smtp_cmd( cmd );
         smtp_putreply( ssrv, 221, "Bye", 0 );
         close( ssrv );
 
@@ -243,22 +247,26 @@ void server( int ssrv ) {
 
         while( resp != NULL && resp->cont ) {
             smtp_putreply(  ssrv, resp->code, resp->text, resp->cont );
+            free_smtp_resp( resp );
             resp = smtp_readreply( sclnt );
         }
         
         smtp_putreply( ssrv, resp->code, resp->text, resp->cont );
+        free_smtp_resp( resp );
 
         while( 1 ) {
             if ( (cmd = smtp_readcmd( ssrv )) == NULL ) {
                 break;
             }
             if ( smtp_putcmd( sclnt, cmd ) ) {
+                free_smtp_cmd( cmd );
                 break;
             }
 
             resp = smtp_readreply(sclnt);
             while( resp != NULL && resp->cont ) {
                 smtp_putreply(  ssrv, resp->code, resp->text, resp->cont );
+                free_smtp_resp( resp );
                 resp = smtp_readreply( sclnt );
             }
             if ( resp == NULL ) {
@@ -266,15 +274,18 @@ void server( int ssrv ) {
             }
 
             if ( smtp_putreply( ssrv, resp->code, resp->text, resp->cont )) {
+                free_smtp_resp( resp );
                 break;
             }
+            free_smtp_resp( resp );
         }
 
         close( ssrv  );
         close( sclnt );
         
         return ;
-    }
+    } 
+    free_smtp_resp( resp );
 
     smtp_putreply( ssrv, 220, "localhost SMTP AV-filter " VERSION, 0 );
 
@@ -282,36 +293,41 @@ void server( int ssrv ) {
         int rc;
 
         cmd = smtp_readcmd( ssrv );
+        debug("rc0-0");
         if ( cmd == NULL ) {
             break;
         }
-
-        if ( strcasecmp(cmd->command, "MAIL") == NULL ) {
-            mail_from = strdup(cmd->argv[0]);
+        if ( !strcasecmp(cmd->command, "MAIL") ) {
+            if ( mail_from != NULL ) {
+                free( mail_from );
+                mail_from = NULL;
+            }
+            if ( cmd->argv[0] != NULL) 
+                mail_from = strdup(cmd->argv[0]);
         }
-        
+        debug("rc0-1");
         if ( strcasecmp(cmd->command, "DATA") == NULL ) {
             struct mem_chunk *data;
 
-            debug("smtp_putcmd: (1) %s", cmd->command);
             smtp_putreply( ssrv, 354, "End data with <CR><LF>.<CR><LF>", 0 );
             debug( "enter DATA" );
-            debug("smtp_putcmd: (2) %s", cmd->command);
             data = smtp_readdata( ssrv );
-            debug("smtp_putcmd: (3) %s", cmd->command);
             if ( check_data( data ) ) {
+                free_mem_chunks( data );
                 error("message from %s infected", mail_from == NULL ?  "<unknown user>" : mail_from );
                 cmd->command = "RSET";
                 cmd->argc = 0;
                 smtp_putcmd( sclnt, cmd );
                 resp = smtp_readreply( sclnt );
+                free_smtp_resp( resp );
                 smtp_putreply(  ssrv, 550, "Content rejected (Message infected with virus)", 0 );
             }
             else { 
                 notice( "message from %s passed virus check", 
                         mail_from == NULL ?  "<unknown user>" : mail_from );
-                debug("smtp_putcmd: (4) %s", cmd->command);
+
                 rc = smtp_putcmd( sclnt, cmd );
+                free_smtp_cmd( cmd );
                 if ( rc ) { 
                     debug( "smtp_putcmd failed, breaking loop" );
                     break;
@@ -326,21 +342,27 @@ void server( int ssrv ) {
                     error("DATA failed: %d %s", resp->code, resp->text);
                     cmd->command = "DATA";
                     cmd->argc = 0;
+                    /* FIXME */
                     smtp_putcmd( sclnt, cmd );
                     smtp_readreply( sclnt );
                 }
+                free_smtp_resp( resp );
 
                 smtp_printf( sclnt, "Received: from %s by %s (AV-filter %s) ;" ,
                         "localhost", "localhost", VERSION  );
                 smtp_printf( sclnt, "\t%s",  mail_date( time( NULL )));
 
                 smtp_putdata( sclnt, data );
+                free_mem_chunks( data );
                 resp = smtp_readreply( sclnt );
                 smtp_putreply(  ssrv, resp->code, resp->text, resp->cont );
+                free_smtp_resp( resp );
             }
         } 
         else {
+            debug( "loop: pc2-1" );
             rc = smtp_putcmd( sclnt, cmd );
+            free_smtp_cmd( cmd ); 
             if ( rc ) { 
                 debug( "smtp_putcmd failed, breaking loop" );
                 break;
@@ -352,6 +374,7 @@ void server( int ssrv ) {
                 if ( strcasecmp(resp->text, "PIPELINING") != NULL )
                     smtp_putreply(  ssrv, resp->code, resp->text, resp->cont );
                 debug( "loop: rr2-2" );
+                free_smtp_resp( resp );
                 resp = smtp_readreply( sclnt );
             }
             if ( resp == NULL ) {
@@ -361,13 +384,16 @@ void server( int ssrv ) {
             debug( "loop: pr2-2" );
             rc = smtp_putreply( ssrv, resp->code, resp->text, resp->cont );
             if ( rc ) {
+                free_smtp_resp( resp );
                 debug( "smtp_putreply failed, breaking loop" );
                 break;
             }
             if ( resp->code == 221 ) {
+                free_smtp_resp( resp );
                 debug( "221 response received" );
                 break;
             }
+            free_smtp_resp( resp );
         }
 
     }
@@ -381,7 +407,7 @@ void parse_args(int argc, char **argv)
         int c;
 
         while (1) {
-                c = getopt(argc, argv, "dVvc:l:p:");
+                c = getopt(argc, argv, "ndVvc:f:l:p:w:b:");
                 if (c == -1)
                         break;
 
@@ -395,10 +421,18 @@ void parse_args(int argc, char **argv)
                                 printf( PACKAGE " " VERSION " " __DATE__ "\n");
                                 exit(0);
                                 break;
-                        case 'c': /* -c host:port */
+                        case 'f': /* -f host:port */
                                 connect_to = strdup(optarg);
+                                break;
                         case 'b': /* -b host:port */
                                 bind_to = strdup(optarg);
+                                break;
+                        case 'w': /* -w host:port */
+                                drwebd_addr = strdup(optarg);
+                                break;
+                        case 'n':
+                                no_check = 1;
+                                break;
                         case 'v':
                                 verbose_mode = 1;
                                 break;
