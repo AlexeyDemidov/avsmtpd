@@ -5,10 +5,13 @@
  */
 
 /*
- *   $Id: drweb.c,v 1.5 2003-02-22 18:34:26 alexd Exp $
+ *   $Id: drweb.c,v 1.6 2003-02-23 07:25:11 alexd Exp $
  *
  *   $Log: drweb.c,v $
- *   Revision 1.5  2003-02-22 18:34:26  alexd
+ *   Revision 1.6  2003-02-23 07:25:11  alexd
+ *   new sock_write syntax
+ *
+ *   Revision 1.5  2003/02/22 18:34:26  alexd
  *   replace send with sock_write
  *   rewrite dw_open with sock_connect
  *   free malloced strings
@@ -85,7 +88,7 @@ int dw_write( int s, void *buf, size_t len ) {
     size_t rc;
     debug("dw_write: sending %d bytes to drwebd", len);
 
-    rc = sock_write( s, buf, len );
+    rc = sock_write( s, buf, len, 120000 );
     debug("dw_write: sent %d bytes", rc);
 
     return rc != len;
