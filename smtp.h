@@ -8,10 +8,13 @@
  */
 
 /*
- *  $Id: smtp.h,v 1.2 2003-02-22 18:39:59 alexd Exp $
+ *  $Id: smtp.h,v 1.3 2003-02-23 07:26:33 alexd Exp $
  *
  *  $Log: smtp.h,v $
- *  Revision 1.2  2003-02-22 18:39:59  alexd
+ *  Revision 1.3  2003-02-23 07:26:33  alexd
+ *  change interface to vsock_
+ *
+ *  Revision 1.2  2003/02/22 18:39:59  alexd
  *  add dmalloc.h
  *  free malloc'ed memory after use
  *
@@ -44,19 +47,20 @@ void              free_smtp_cmd  ( struct smtp_cmd  *cmd );
 
 void              free_mem_chunks( struct mem_chunk *root );
 
-char             *mail_date ( time_t when );
+char             *mail_date     ( time_t when );
 
-int               smtp_readln( int s, char *buf, size_t len );
-int               smtp_putline( int s, char *b );
-int               smtp_printf( int s, const char *fmt, ... );
+char             *smtp_get      (vsock_t *vsock);
 
-int               smtp_putreply( int s, int code, const char *text, int cont );
-struct smtp_resp *smtp_readreply( int s );
+int               smtp_putline  ( vsock_t *s, char *b );
+int               smtp_printf   ( vsock_t *s, const char *fmt, ... );
 
-struct smtp_cmd  *smtp_readcmd( int s );
-int               smtp_putcmd( int s, struct smtp_cmd *cmd);
+int               smtp_putreply ( vsock_t *s, int code, const char *text, int cont );
+struct smtp_resp *smtp_readreply( vsock_t *s );
 
-struct mem_chunk *smtp_readdata( int s);
-int               smtp_putdata( int s, struct mem_chunk *root);
+struct smtp_cmd  *smtp_readcmd  ( vsock_t *s );
+int               smtp_putcmd   ( vsock_t *s, struct smtp_cmd *cmd);
+
+struct mem_chunk *smtp_readdata ( vsock_t *s);
+int               smtp_putdata  ( vsock_t *s, struct mem_chunk *root);
 
 #endif /* _SMTP_H */

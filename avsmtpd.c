@@ -1,8 +1,11 @@
 /*
- *   $Id: avsmtpd.c,v 1.4 2003-02-22 18:37:31 alexd Exp $
+ *   $Id: avsmtpd.c,v 1.5 2003-02-23 07:27:15 alexd Exp $
  *
  *   $Log: avsmtpd.c,v $
- *   Revision 1.4  2003-02-22 18:37:31  alexd
+ *   Revision 1.5  2003-02-23 07:27:15  alexd
+ *   change interface to vsock_
+ *
+ *   Revision 1.4  2003/02/22 18:37:31  alexd
  *   added dmalloc.h
  *   -n command line switch, don't check data content
  *   use sock_listen, sock_connect functions
@@ -56,7 +59,7 @@
 char *program = PACKAGE;
 
 const int facility = LOG_MAIL;
-const char *logfile = "/tmp/avsmtpd.log";
+const char *logfile = NULL;
 
 int daemon_mode  = 1;
 int debug_mode   = 0;
@@ -71,11 +74,14 @@ const char *euser    = "alexd";
 char *connect_to = "localhost:10026";
 char *bind_to    = "localhost:10025";
 
+int   timeout    = 12000;
+
 int   drweb_ver  = 0;
 char *drweb_id   = NULL;
 
 void av_shutdown(int rc);
-void server( int s );
+
+void server( vsock_t *s );
 
 void sig_int(int sig) { 
     av_shutdown(0);
@@ -111,17 +117,23 @@ void av_shutdown(int rc) {
     free( drweb_id );
     if ( connect_to != NULL ) 
         free( connect_to );
+    if ( bind_to != NULL ) 
+        free( bind_to );
     exit(rc);
 }
 
 
 void main_loop() { 
+    /* vsock_t *s;
+    s = vsock_listen( bind_to, 1500, timeout );
+     */
+
     int s;
 
     s = sock_listen( bind_to );
 
     do {
-        int ssrv;
+        vsock_t *ssrv;
         struct sockaddr_in peer;
         size_t peerlen = sizeof (peer);
         pid_t pid;
@@ -133,21 +145,24 @@ void main_loop() {
         
         bzero( &peer,  sizeof (peer));
         
-        ssrv = accept( s, (struct sockaddr *)&peer, &peerlen);
-        if ( ssrv < 0 ) {
+        ssrv = vsock_init( accept( s, (struct sockaddr *)&peer, &peerlen), 1500, timeout );
+        if ( ssrv == NULL ) {
             Perror("accept");
             return;
         }
         peer_addr = inet_ntoa(peer.sin_addr);
 
-        debug("peerlen = %d", peerlen);
+#if 0        
+
         hp = gethostbyaddr((char *) &(peer.sin_addr), peerlen, AF_INET);
         peer_name = (hp == NULL) ? "unknown" : hp->h_name;
 
         if ( hp == NULL )
             debug("server: %s", hstrerror(h_errno));
+#endif
 
         notice("client %s[%s] connected to %s", peer_name, peer_addr, bind_to );
+
 #ifndef NO_FORK 
         if ( (pid = fork()) == -1) {
             Perror("fork");
@@ -157,7 +172,7 @@ void main_loop() {
         else {
             if ( pid ) {
                 debug("child forked %d", pid);
-                close( ssrv );
+                vsock_close( ssrv );
             }
             else {
 #endif                
@@ -188,6 +203,11 @@ int check_data( struct mem_chunk *root ) {
     }
     debug( "total data for check: %d", total );
 
+    if ( total == 0 ) {
+        error("check_data: zero data");
+        return 0;
+    }
+
     buf = malloc( total );
     
     if ( buf == NULL ) {
@@ -205,24 +225,21 @@ int check_data( struct mem_chunk *root ) {
         next = next->next;
     }
 
-    /*
-    debug("checking data: size = %d val = <%s>", total, buf );
-    */
     rc = dw_scan( buf, total );
     free( buf );
     return rc;
 }
 
-void server( int ssrv ) {
+void server( vsock_t *ssrv ) {
 
     struct smtp_resp *resp;
     struct smtp_cmd  *cmd;
 
     char *mail_from = NULL;
 
-    int sclnt;
+    vsock_t *sclnt;
 
-    if ( (sclnt = sock_connect(connect_to)) < 0 ) {
+    if ( (sclnt = vsock_connect(connect_to, 1500, timeout)) == NULL ) {
         error( "Can't forward connection" );
 
         smtp_putreply( ssrv, 554, "Sorry, can't forward connection", 0 );
@@ -235,7 +252,7 @@ void server( int ssrv ) {
         }
         free_smtp_cmd( cmd );
         smtp_putreply( ssrv, 221, "Bye", 0 );
-        close( ssrv );
+        vsock_close( ssrv );
 
         return ;
     }
@@ -280,8 +297,8 @@ void server( int ssrv ) {
             free_smtp_resp( resp );
         }
 
-        close( ssrv  );
-        close( sclnt );
+        vsock_close( ssrv  );
+        vsock_close( sclnt );
         
         return ;
     } 
@@ -293,7 +310,6 @@ void server( int ssrv ) {
         int rc;
 
         cmd = smtp_readcmd( ssrv );
-        debug("rc0-0");
         if ( cmd == NULL ) {
             break;
         }
@@ -305,7 +321,6 @@ void server( int ssrv ) {
             if ( cmd->argv[0] != NULL) 
                 mail_from = strdup(cmd->argv[0]);
         }
-        debug("rc0-1");
         if ( strcasecmp(cmd->command, "DATA") == NULL ) {
             struct mem_chunk *data;
 
@@ -360,20 +375,18 @@ void server( int ssrv ) {
             }
         } 
         else {
-            debug( "loop: pc2-1" );
             rc = smtp_putcmd( sclnt, cmd );
             free_smtp_cmd( cmd ); 
             if ( rc ) { 
                 debug( "smtp_putcmd failed, breaking loop" );
                 break;
             }
-            debug( "loop: rr2-1" );
             resp = smtp_readreply( sclnt );
             while( resp != NULL && resp->cont ) {
-                debug( "loop: pr2-1" );
+#if 0                
                 if ( strcasecmp(resp->text, "PIPELINING") != NULL )
+#endif
                     smtp_putreply(  ssrv, resp->code, resp->text, resp->cont );
-                debug( "loop: rr2-2" );
                 free_smtp_resp( resp );
                 resp = smtp_readreply( sclnt );
             }
@@ -381,7 +394,6 @@ void server( int ssrv ) {
                 debug( "smtp_readreply failed, breaking loop" );
                 break;
             }
-            debug( "loop: pr2-2" );
             rc = smtp_putreply( ssrv, resp->code, resp->text, resp->cont );
             if ( rc ) {
                 free_smtp_resp( resp );
@@ -397,8 +409,8 @@ void server( int ssrv ) {
         }
 
     }
-    close( ssrv  );
-    close( sclnt );
+    vsock_close( ssrv  );
+    vsock_close( sclnt );
 }
 
 void parse_args(int argc, char **argv)
@@ -472,7 +484,6 @@ int main (int argc, char **argv) {
     else 
         program ++;
     
-
     parse_args(argc, argv);
 
     debug("start up");
@@ -481,6 +492,7 @@ int main (int argc, char **argv) {
 
     debug("init log"); 
     
+    
     if (daemon_mode) { 
         if (daemon(0, 0)) 
             av_shutdown(1); 
@@ -488,7 +500,7 @@ int main (int argc, char **argv) {
 
     set_signals(); 
     signal(SIGPIPE, SIG_IGN);
-
+    
     if (create_pid_file())          /* bug - don't call shutdown - it removes pidfile */ 
         av_shutdown(1);
 
