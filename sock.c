@@ -1,8 +1,11 @@
 /*
- * $Id: sock.c,v 1.4 2003-02-23 07:26:08 alexd Exp $
+ * $Id: sock.c,v 1.5 2003-02-23 11:59:33 alexd Exp $
  * 
  * $Log: sock.c,v $
- * Revision 1.4  2003-02-23 07:26:08  alexd
+ * Revision 1.5  2003-02-23 11:59:33  alexd
+ * added vsock_write, vsock_{i|o}flush
+ *
+ * Revision 1.4  2003/02/23 07:26:08  alexd
  * added vsock_ functions
  * make timeout configurable
  *
@@ -32,7 +35,7 @@
 #include <assert.h>
 #include <fcntl.h>
 
-#include <config.h>
+#include "config.h"
 
 #ifdef HAVE_POLL_H
 #include <poll.h>
@@ -64,6 +67,7 @@ int sock_write( int s, void *buf, size_t len, int timeout ) {
     }
 
     if ( rc == 0 ) {
+        errno = ETIMEDOUT;
         error("sock_write: timeout");
         return -1;
     }
@@ -134,6 +138,7 @@ int sock_read( int s, void *buf, size_t len, int timeout ) {
     }
 
     if ( rc == 0 ) {
+        errno = ETIMEDOUT;
         error("sock_read: timeout");
         return -1;
     }
@@ -168,6 +173,7 @@ int sock_read( int s, void *buf, size_t len, int timeout ) {
     }
     if ( rc == 0 ) {
         error("sock_read: timeout reading data");
+        errno = ETIMEDOUT;
         return -1;
     }
     if ( FD_ISSET( s, &exevents ) ) {
@@ -268,11 +274,63 @@ void vsock_free( vsock_t *vsock ) {
     free( vsock );
 }
 
-int vsock_write( vsock_t *s, void *buf, size_t len ) {
-    int rc;
-    
-    rc = sock_write( s->s, buf, len, s->otimeout ); 
+int vsock_write( vsock_t *vsock, void *buf, size_t len ) {
+    int rc = 0;
+
+    assert( len > 0 );
+    assert( buf   != NULL );
+    assert( vsock != NULL );
+
+    while( len > 0 ) {
+        size_t to_copy;
+
+        /* no buffer space, flush */
+        if ( vsock->ocnt + len > vsock->olen ) {
+            rc = vsock_oflush( vsock );
+            if ( rc < 0 ) {
+                error("vsock_write: error writing output");
+                return rc;
+            }
+        }
+        
+        /* copy to buffer no more then buffer size bytes  */
+        to_copy = vsock->olen > len ? len : vsock->olen;
+        memcpy( vsock->optr, buf, to_copy  );
+        /*
+        debug("vsock_write: coping %d bytes to buffer: %s", to_copy, buf);
+        */
+        
+        vsock->optr += to_copy;
+        vsock->ocnt += to_copy;
+
+        len -= to_copy;
+        rc += to_copy;
+    }
+    debug("vsock_write: writen %d bytes", rc);
     return rc;
+}
+
+int vsock_oflush( vsock_t *vsock ) {
+    int rc = 0;
+
+    if ( vsock->ocnt > 0 ) {
+        /*
+        debug("vsock_oflush: output buffer size = %d, val = %s", vsock->ocnt, vsock->obuf );
+        */
+        rc = sock_write( vsock->s, vsock->obuf, vsock->ocnt, vsock->otimeout );
+        vsock->optr = vsock->obuf;
+        vsock->ocnt = 0;
+        debug("vsock_oflush: wirten %d bytes", rc);
+    }
+    return rc;
+}
+
+int vsock_iflush( vsock_t *vsock ) {
+    if ( vsock->icnt > 0 ) {
+        vsock->icnt = 0;
+        vsock->iptr = vsock->ibuf;
+    }
+    return 0;
 }
 
 int vsock_fill ( vsock_t *vsock ) {
