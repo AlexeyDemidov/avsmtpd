@@ -1,9 +1,13 @@
 
 /*
- *   $Id: smtp.c,v 1.2 2003-02-17 01:55:37 alexd Exp $
+ *   $Id: smtp.c,v 1.3 2003-02-22 18:39:59 alexd Exp $
  *
  *   $Log: smtp.c,v $
- *   Revision 1.2  2003-02-17 01:55:37  alexd
+ *   Revision 1.3  2003-02-22 18:39:59  alexd
+ *   add dmalloc.h
+ *   free malloc'ed memory after use
+ *
+ *   Revision 1.2  2003/02/17 01:55:37  alexd
  *   some lint cleanup
  *
  *   Revision 1.1  2003/02/17 01:22:48  alexd
@@ -25,7 +29,14 @@
 #include <errno.h>
 
 #include "log.h"
+#include "sock.h"
 #include "smtp.h"
+
+#include "config.h"
+
+#ifdef WITH_DMALLOC
+#include "dmalloc.h"
+#endif
 
 #define DAY_MIN         (24 * HOUR_MIN) /* minutes in a day */
 #define HOUR_MIN        60              /* minutes in an hour */
@@ -71,6 +82,36 @@ char *mail_date ( time_t when ) {
 
 }
 
+void free_smtp_resp( struct smtp_resp *resp ) {
+    if ( resp != NULL  && resp->text != NULL) { 
+        free( resp->text );
+    }
+}
+
+void free_smtp_cmd ( struct smtp_cmd  *cmd ) {
+    int i;
+
+    if ( cmd->command != NULL )
+        free( cmd->command );
+    if ( cmd != NULL && cmd->argv != NULL ) {
+        for ( i = 0; cmd->argv[i] != NULL ; i++) 
+            free(cmd->argv[i]);
+        free( cmd->argv);
+    }
+}
+
+void free_mem_chunks( struct mem_chunk *root ) {
+    struct mem_chunk *prev;
+    while ( root != NULL ) {
+        if ( root->size > 0 && root->b != NULL ) {
+            free( root->b);
+        }
+        prev = root;
+        root = root->next;
+        free( prev );
+    }
+}
+
 int smtp_readln( int s, char *buf, size_t len ) {
 
     char *buf_start = buf;
@@ -83,7 +124,11 @@ int smtp_readln( int s, char *buf, size_t len ) {
     while( len > 0 ) { /* still need more bytes */
         if ( cnt <= 0 ) { /* no data in internal buffer */
 
+#if 0
             cnt = recv( s, b, sizeof(b), 0);
+#else
+            cnt = sock_read( s, b, sizeof(b) );
+#endif
             if ( cnt < 0) { /* can't read */
                 if ( errno == EINTR ) 
                     continue;
@@ -92,7 +137,8 @@ int smtp_readln( int s, char *buf, size_t len ) {
             }
             if ( cnt == 0 ) /* no data to read */
                 return 0;
-            b[cnt] = '\0';
+            debug("smtp_readln: recv %d bytes", cnt );
+            /* b[cnt] = '\0'; */
             /* debug( "recv: <%s>", b); */
             bp = b; /* reset head to begin of b */
         }
@@ -127,14 +173,14 @@ int smtp_putline( int s, char *b ) {
 
     debug("smtp_putline: <%s>", b);
 
-    rc = send( s, b, len, 0);
+    rc = sock_write( s, b, len);
     if ( rc < 0 ) {
-        Perror("send");
+        Perror("write");
         return rc;
     }
-    rc = send( s, "\r\n", 2, 0);
+    rc = sock_write( s, "\r\n", 2);
     if ( rc < 0 ) {
-        Perror("send");
+        Perror("write");
         return rc;
     }
     return rc;
@@ -158,7 +204,9 @@ int smtp_putreply( int s, int code, const char *text, int cont ) {
 
     char *b;
     size_t need;
+    int rc;
 
+    /* FIXME */
     need = strlen( text ) + 10;
 
     b = malloc( need );
@@ -167,7 +215,9 @@ int smtp_putreply( int s, int code, const char *text, int cont ) {
 
     debug("smtp_putreply: %s", b);
     
-    return smtp_putline( s, b ) <= 0;
+    rc = smtp_putline( s, b ) <= 0;
+    free( b );
+    return rc;
 }
 
 
@@ -180,28 +230,55 @@ smtp_readcmd( int s ) {
     char *ap = buf;
     int  i, rc;
 
-    bzero( &cmd, sizeof(struct  smtp_cmd) );
+    bzero( &cmd, sizeof(struct smtp_cmd) );
     
     rc = smtp_readln( s, buf, sizeof( buf ) );
     if ( rc < 0) {
         return NULL;
     }
 
-    debug("smtp_readcmd: <%s>", buf );
-
-    cmd.argv = malloc( sizeof ( cmd.argv ) * 10);
+    debug("smtp_readcmd: (1) <%s>", p );
 
     ap = strsep( &p , " \t");
 
-    cmd.command = malloc( strlen(ap) );
+    debug("smtp_readcmd: (2) <%s>", buf );
+    debug("smtp_readcmd: strlen(ap) = %d", strlen(ap));
+    cmd.command = malloc( strlen(ap) + 1 );
+    if ( cmd.command == NULL ) {
+        Perror("malloc");
+        return NULL;
+    }
     strcpy( cmd.command, ap );
+    debug("smtp_readcmd: (3) <%s>", buf );
 
     while( p != NULL && *p == ' ')
         p++;
+    
+    if ( p == NULL || *p == '\0' ) {
+        return &cmd;
+    }
 
-    for ( i = 0;  (ap = strsep( &p, " ")) != NULL ; i++ ) {
-        cmd.argv[i] = malloc( strlen(ap) );
+    i = sizeof( char *) * 10;
+    debug("sizeof(cmd.argv) = %d", i );
+
+    cmd.argv = malloc( sizeof ( cmd.argv ) * 10);
+    bzero( cmd.argv, 10 * sizeof ( cmd.argv )  );
+
+    for ( i = 0;  p != NULL && (ap = strsep( &p, " \t")) != NULL ; i++ ) {
+        if ( i > 9 ) { 
+            error("too many args");
+            break;
+        }
+        if ( ap == NULL )
+            break;
+        debug("smtp_readcmd: arg ap = <%s>", ap);
+        cmd.argv[i] = malloc( strlen(ap) + 1 );
+        if ( cmd.argv[i] == NULL ) {
+            Perror("malloc");
+            return NULL;
+        }
         strcpy( cmd.argv[i], ap);
+        debug("smtp_cmd: %d %s", i, ap );
 
         while( p != NULL && *p == ' ')
             p++;
@@ -220,6 +297,7 @@ smtp_readreply( int s ) {
     
     char buf[1500];
     char *p = buf;
+    char *endp = NULL;
     char *code_start = NULL;
     int rc;
 
@@ -238,6 +316,14 @@ smtp_readreply( int s ) {
     resp.code = 0;
     resp.text = NULL;
 
+    resp.code = strtol( p, &endp, 10 );
+
+    if ( endp == p ) {
+        error("no digits found in smtp reply");
+        return NULL;
+    }
+    p = endp;
+/*
     while( !isdigit( *p) && (*p != NULL) ) 
         p++;
 
@@ -250,19 +336,20 @@ smtp_readreply( int s ) {
 
     while( isdigit ( *p ) && (*p != NULL) )
         p++;
-
+*/
     if ( *p == '-' ) {
         resp.cont = 1;
     }
     
     if ( *p == ' ' || *p == '-' ) {
         *p = 0;
-        p++;
-        resp.code = atoi( code_start );
+        p++; 
+        /* resp.code = atoi( code_start ); */
     }
     
     /* // debug("text_start: <%s>", p ); */
 
+    /* free this */
     resp.text = malloc(strlen(p) + 1); 
     if ( resp.text == NULL ) {
         Perror("malloc");
@@ -280,8 +367,9 @@ int smtp_putcmd( int s, struct smtp_cmd *cmd) {
 
     char *b;
     size_t need = 1;
-    int i;
+    int i, rc;
 
+    debug("smtp_putcmd: start");
     if ( cmd == NULL || cmd->command == NULL ) {
         error("smtp_putcmd: invalid argument");
         return -1;
@@ -308,7 +396,10 @@ int smtp_putcmd( int s, struct smtp_cmd *cmd) {
         strcat( b, cmd->argv[i] );
     }
     debug("smtp_putcmd: <%s>", b);
-    return smtp_putline( s, b ) <= 0;
+    rc = smtp_putline( s, b ) <= 0;
+
+    free( b );
+    return rc;
 }
 
 struct mem_chunk *
@@ -326,7 +417,11 @@ chunk_add(  void *buf, size_t len ) {
         chunk->b = "";
     }
     else { 
-       chunk->b = malloc( len + 1 ); /* // trailing \0 */
+       chunk->b = malloc( len + 1 ); /* +1 for trailing \0 */
+       if ( chunk->b == NULL ) {
+           error("chunk_add: malloc failed");
+           return NULL;
+       }
        chunk->size = len;
        strncpy( chunk->b, buf, len + 1); 
     }
@@ -347,10 +442,11 @@ struct mem_chunk *smtp_readdata( int s) {
             Perror( "smtp_readdata");
             return NULL;
         }
-        debug( "smtp_readdata: %d %s", rc, buf );
+        /* debug( "smtp_readdata: %d %s", rc, buf ); */
         
         if ( rc == 1 && buf[0] == '.' ) {
             debug( "root->b = <%s>", root->b);
+            prev->next = NULL;
             return root;
         }
 

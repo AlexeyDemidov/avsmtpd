@@ -8,10 +8,14 @@
  */
 
 /*
- *  $Id: smtp.h,v 1.1 2003-02-17 01:22:48 alexd Exp $
+ *  $Id: smtp.h,v 1.2 2003-02-22 18:39:59 alexd Exp $
  *
  *  $Log: smtp.h,v $
- *  Revision 1.1  2003-02-17 01:22:48  alexd
+ *  Revision 1.2  2003-02-22 18:39:59  alexd
+ *  add dmalloc.h
+ *  free malloc'ed memory after use
+ *
+ *  Revision 1.1  2003/02/17 01:22:48  alexd
  *  moved some functions to smtp.c sock.c
  *
  *
@@ -34,6 +38,11 @@ struct mem_chunk {
     size_t size;
     struct mem_chunk *next;
 };
+
+void              free_smtp_resp ( struct smtp_resp *resp );
+void              free_smtp_cmd  ( struct smtp_cmd  *cmd );
+
+void              free_mem_chunks( struct mem_chunk *root );
 
 char             *mail_date ( time_t when );
 
