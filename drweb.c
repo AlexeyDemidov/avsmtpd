@@ -1,3 +1,21 @@
+
+/*
+ *  DrWeb(R) daemon protocol support routines.
+ *  Copyright (c) 2003 Alex L. Demidov
+ */
+
+/*
+ *   $Id: drweb.c,v 1.5 2003-02-22 18:34:26 alexd Exp $
+ *
+ *   $Log: drweb.c,v $
+ *   Revision 1.5  2003-02-22 18:34:26  alexd
+ *   replace send with sock_write
+ *   rewrite dw_open with sock_connect
+ *   free malloced strings
+ *
+ *
+ */
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,9 +26,15 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <config.h>
+
 #include "drweb.h"
 #include "log.h"
 #include "sock.h"
+
+#ifdef WITH_DMALLOC
+#include "dmalloc.h"
+#endif
 
 char *drwebd_addr = "localhost:3000";
 
@@ -20,6 +44,7 @@ char *drwebd_addr = "localhost:3000";
  */
 
 int dw_open( const char *addr ) {
+#if 0
     struct sockaddr_in peer;
     struct sockaddr *daemon_addr;
     int s;
@@ -46,8 +71,10 @@ int dw_open( const char *addr ) {
         Perror("dw_open::connect"); 
         return -1;
     }
-
     return s;
+#endif
+    return sock_connect( addr );
+
 }
 
 int dw_close( int s) {
@@ -58,7 +85,7 @@ int dw_write( int s, void *buf, size_t len ) {
     size_t rc;
     debug("dw_write: sending %d bytes to drwebd", len);
 
-    rc = send( s, buf, len, 0 );
+    rc = sock_write( s, buf, len );
     debug("dw_write: sent %d bytes", rc);
 
     return rc != len;
@@ -205,6 +232,7 @@ void dw_getbaseinfo() {
         id_str = dw_readline( s );
         dw_readint( s, &nviruses );
         notice( "base %s with %d viruses", id_str, nviruses );
+        free( id_str );
     }
 
     return;
@@ -224,7 +252,7 @@ int  dw_scan( void *data, size_t len ) {
     int cmd_result;
 
     if ( (s = dw_open( drwebd_addr )) < 0) {
-        error("can't open connection to drwebd at localhost:3000");
+        error("can't open connection to drwebd at %s", drwebd_addr);
         return -1;
     }
 
