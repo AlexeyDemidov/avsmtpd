@@ -1,8 +1,11 @@
 /*
- *   $Id: avsmtpd.c,v 1.5 2003-02-23 07:27:15 alexd Exp $
+ *   $Id: avsmtpd.c,v 1.6 2003-02-23 12:00:28 alexd Exp $
  *
  *   $Log: avsmtpd.c,v $
- *   Revision 1.5  2003-02-23 07:27:15  alexd
+ *   Revision 1.6  2003-02-23 12:00:28  alexd
+ *   if NO_FORK don't go into daemon mode
+ *
+ *   Revision 1.5  2003/02/23 07:27:15  alexd
  *   change interface to vsock_
  *
  *   Revision 1.4  2003/02/22 18:37:31  alexd
@@ -492,11 +495,13 @@ int main (int argc, char **argv) {
 
     debug("init log"); 
     
+#ifndef NO_FORK
     
     if (daemon_mode) { 
         if (daemon(0, 0)) 
             av_shutdown(1); 
     } 
+#endif
 
     set_signals(); 
     signal(SIGPIPE, SIG_IGN);
