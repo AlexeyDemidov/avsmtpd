@@ -1,8 +1,11 @@
 /*
- *   $Id: avsmtpd.c,v 1.7 2003-03-01 12:50:57 alexd Exp $
+ *   $Id: avsmtpd.c,v 1.8 2003-03-01 19:09:27 alexd Exp $
  *
  *   $Log: avsmtpd.c,v $
- *   Revision 1.7  2003-03-01 12:50:57  alexd
+ *   Revision 1.8  2003-03-01 19:09:27  alexd
+ *   fixed bug with gethostbyaddr
+ *
+ *   Revision 1.7  2003/03/01 12:50:57  alexd
  *   add -t switch for timeout setting
  *   make 120 sec default timeout
  *
@@ -159,14 +162,11 @@ void main_loop() {
         }
         peer_addr = inet_ntoa(peer.sin_addr);
 
-#if 0        
-
-        hp = gethostbyaddr((char *) &(peer.sin_addr), peerlen, AF_INET);
+        hp = gethostbyaddr((char *) &peer.sin_addr, sizeof(peer.sin_addr), AF_INET);
         peer_name = (hp == NULL) ? "unknown" : hp->h_name;
 
         if ( hp == NULL )
             debug("server: %s", hstrerror(h_errno));
-#endif
 
         notice("client %s[%s] connected to %s", peer_name, peer_addr, bind_to );
 
