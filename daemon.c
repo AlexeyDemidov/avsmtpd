@@ -4,10 +4,13 @@
  */
 
 /*
- *  $Id: daemon.c,v 1.3 2003-02-17 20:42:53 alexd Exp $
+ *  $Id: daemon.c,v 1.4 2003-02-22 18:29:57 alexd Exp $
  *
  *  $Log: daemon.c,v $
- *  Revision 1.3  2003-02-17 20:42:53  alexd
+ *  Revision 1.4  2003-02-22 18:29:57  alexd
+ *  added dmalloc.h, config.h
+ *
+ *  Revision 1.3  2003/02/17 20:42:53  alexd
  *  some more clean up
  *
  *  Revision 1.2  2003/02/17 01:22:48  alexd
@@ -28,7 +31,6 @@
  *
  */
 
-#include "config.h"
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -39,6 +41,8 @@
 #include <pwd.h>
 #include <string.h>
 
+#include "config.h"
+
 #ifdef HAVE_GETRLIMIT
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -47,9 +51,13 @@
 #include "daemon.h"
 #include "log.h"
 
+#ifdef WITH_DMALLOC
+#include "dmalloc.h"
+#endif
+
 #ifndef lint
-static const char *rcsid = "$Id: daemon.c,v 1.3 2003-02-17 20:42:53 alexd Exp $";
-static const char *revision = "$Revision: 1.3 $";
+static const char *rcsid = "$Id: daemon.c,v 1.4 2003-02-22 18:29:57 alexd Exp $";
+static const char *revision = "$Revision: 1.4 $";
 #endif
 
 
