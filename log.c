@@ -4,10 +4,15 @@
  */
 
 /*
- *  $Id: log.c,v 1.3 2003-02-17 20:42:53 alexd Exp $
+ *  $Id: log.c,v 1.4 2003-02-22 18:32:19 alexd Exp $
  *
  *  $Log: log.c,v $
- *  Revision 1.3  2003-02-17 20:42:53  alexd
+ *  Revision 1.4  2003-02-22 18:32:19  alexd
+ *  added dmalloc.h
+ *  replace fprintf("") with fputs
+ *  replace vsyslog with vprintf && syslog
+ *
+ *  Revision 1.3  2003/02/17 20:42:53  alexd
  *  some more clean up
  *
  *  Revision 1.2  2003/02/17 01:55:37  alexd
@@ -46,12 +51,18 @@
 #include <string.h>
 #include <time.h>
 
+#include "config.h"
+
 #include "daemon.h"
 #include "log.h"
 
+#ifdef WITH_DMALLOC
+#include "dmalloc.h"
+#endif
+
 #ifndef lint
-static const char *rcsid = "$Id: log.c,v 1.3 2003-02-17 20:42:53 alexd Exp $";
-static const char *revision = "$Revision: 1.3 $";
+static const char *rcsid = "$Id: log.c,v 1.4 2003-02-22 18:32:19 alexd Exp $";
+static const char *revision = "$Revision: 1.4 $";
 #endif
 
 static int syslog_init = 0;
@@ -90,8 +101,14 @@ static void vmessage(int loglevel, const char *format, va_list ap)
     char buf[BUFSIZE];
 
     /* FIXME: logging to console if errors and logfile still not initilized */
-    if (syslog_init)
+    if (syslog_init) {
+#if 0
 	vsyslog(loglevel, format, ap);
+#else
+	vsnprintf(buf, BUFSIZE, format, ap);
+        syslog( loglevel, buf);
+#endif
+    }
 
     if (logfile || !daemon_mode) {
 	/* FIXME: %m format */
@@ -110,6 +127,7 @@ static void vmessage(int loglevel, const char *format, va_list ap)
 	strftime(timestamp, BUFSIZE, "%b %d %H:%M:%S", ptm);
 	snprintf(buf, BUFSIZE, "%s %s[%d]: %s\n",
 		 timestamp, program, (int) getpid(), str);
+#if 0
 
 	if ((p = strstr(buf, "%m")) != NULL ) {
 	    char newbuf[BUFSIZE];
@@ -120,6 +138,8 @@ static void vmessage(int loglevel, const char *format, va_list ap)
 
             strcpy ( buf, newbuf );
 	}
+#endif
+        
     }
 
     if (logfile) {
@@ -136,7 +156,7 @@ static void vmessage(int loglevel, const char *format, va_list ap)
 	    /* error("can't open logfile %s:%m", logfile); */
 	}
 	else {
-	    fprintf(log, buf);
+	    fputs(buf, log);
 	    fclose(log);
 	}
     }
