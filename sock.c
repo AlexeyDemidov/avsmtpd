@@ -1,8 +1,12 @@
 /*
- * $Id: sock.c,v 1.3 2003-02-22 18:38:42 alexd Exp $
+ * $Id: sock.c,v 1.4 2003-02-23 07:26:08 alexd Exp $
  * 
  * $Log: sock.c,v $
- * Revision 1.3  2003-02-22 18:38:42  alexd
+ * Revision 1.4  2003-02-23 07:26:08  alexd
+ * added vsock_ functions
+ * make timeout configurable
+ *
+ * Revision 1.3  2003/02/22 18:38:42  alexd
  * add sock_listen, sock_connect, sock_write, sock_read functions
  *
  * Revision 1.2  2003/02/17 20:42:53  alexd
@@ -26,6 +30,7 @@
 #include <netdb.h>
 #include <errno.h>
 #include <assert.h>
+#include <fcntl.h>
 
 #include <config.h>
 
@@ -37,18 +42,15 @@
 #include "dmalloc.h"
 #endif
 
-#include <fcntl.h>
 
 #include "log.h"
 #include "sock.h"
 
-int sock_write( int s, void *buf, size_t len ) { 
+int sock_write( int s, void *buf, size_t len, int timeout ) { 
     int rc;
 
 #ifdef HAVE_POLL    
     struct pollfd pfd;
-
-    int timeout = 5000; /* milliseconds */
 
     pfd.fd = s;
     pfd.events  = POLLOUT ;
@@ -67,7 +69,7 @@ int sock_write( int s, void *buf, size_t len ) {
     }
 
     if ( (pfd.revents & POLLOUT) == 0 ) {
-        error("sock_read: no POLLOUT in revents");
+        error("sock_write: no POLLOUT in revents");
         return 0;
     }
 #else
@@ -83,8 +85,8 @@ int sock_write( int s, void *buf, size_t len ) {
     FD_ZERO ( &wrevents );
     FD_SET  ( s, &wrevents );
 
-    tv.tv_sec = 5;
-    tv.tv_usec = 0;
+    tv.tv_sec  = timeout / 1000;
+    tv.tv_usec =  (timeout % 1000) * 1000;
 
     while ( (rc = select( s + 1, NULL, &wrevents, NULL, &tv)) <= 0 ) {
         if ( rc == EINTR ) 
@@ -114,13 +116,11 @@ int sock_write( int s, void *buf, size_t len ) {
     return rc;
 }
 
-int sock_read( int s, void *buf, size_t len ) { 
+int sock_read( int s, void *buf, size_t len, int timeout ) { 
     int rc;
 
 #ifdef HAVE_POLL    
     struct pollfd pfd;
-
-    int timeout = 5000; /* milliseconds */
 
     pfd.fd = s;
     pfd.events  = POLLIN ;
@@ -157,8 +157,8 @@ int sock_read( int s, void *buf, size_t len ) {
 
     exevents = rdevents;
 
-    tv.tv_sec = 5;
-    tv.tv_usec = 0;
+    tv.tv_sec  = timeout / 1000;
+    tv.tv_usec =  (timeout % 1000) * 1000;
 
     rc = select( s + 1, &rdevents, NULL, &exevents, &tv);
 
@@ -177,27 +177,9 @@ int sock_read( int s, void *buf, size_t len ) {
 #endif
 #endif    
 
-    rc = recv( s, buf, len, 0);
-
+    rc = recv( s, buf, len , 0);
     return rc;
 }
-
-typedef struct {
-    int s;
-
-    void *ibuf;
-    void *obuf;
-
-    size_t icnt;
-    size_t ocnt;
-
-    size_t ilen;
-    size_t olen;
-
-    int    itimeout; // milliseconds
-    int    otimeout;
-
-} vsock_t;
 
 vsock_t *vsock_init(int s, size_t bufsize, int timeout ) {
     vsock_t *vsock = NULL;
@@ -217,30 +199,65 @@ vsock_t *vsock_init(int s, size_t bufsize, int timeout ) {
         return NULL;
     }
     bzero( vsock, sizeof(vsock_t) );
+    
+    vsock->ilen = vsock->olen = bufsize;
 
-    vsock->ibuf = malloc( bufsize );
+    vsock->ibuf = malloc( bufsize + 1);
     if ( vsock->ibuf == NULL ) {
         free( vsock );
         error("vsock_init: malloc failed");
         return NULL;
     }
+    bzero( vsock->ibuf, bufsize + 1 );
+    debug("allocated ibuf size = %d, %d", bufsize, vsock->ilen );
 
-    vsock->obuf = malloc( bufsize );
+    vsock->obuf = malloc( bufsize + 1);
     if ( vsock->obuf == NULL ) {
         free( vsock->ibuf );
         free( vsock );
         error("vsock_init: malloc failed");
         return NULL;
     }
+    bzero( vsock->obuf, bufsize + 1 );
+    debug("allocated obuf size = %d, %d", bufsize, vsock->olen );
 
-    vsock->ilen = vsock->olen = bufsize;
     vsock->icnt = vsock->ocnt = 0;
+    vsock->iptr = vsock->ibuf;
+    vsock->optr = vsock->obuf;
 
     vsock->itimeout = vsock->otimeout = timeout;
 
     vsock->s = s;
 
     return vsock;
+}
+
+vsock_t *vsock_listen( const char *addr, size_t bufsize, int timeout ) {
+    int s = 0;
+
+    s = sock_listen( addr );
+
+    if ( s < 0 ) 
+        return NULL;
+
+    return vsock_init(s, bufsize, timeout );
+}
+
+vsock_t *vsock_connect( const char *addr, size_t bufsize, int timeout ) {
+    int s = 0;
+
+    s = sock_connect( addr );
+
+    if ( s < 0 ) 
+        return NULL;
+
+    return vsock_init(s, bufsize, timeout );
+}
+
+int vsock_close( vsock_t *vsock ) {
+    int s = vsock->s;
+    vsock_free( vsock );
+    return close(s);
 }
 
 void vsock_free( vsock_t *vsock ) {
@@ -251,11 +268,34 @@ void vsock_free( vsock_t *vsock ) {
     free( vsock );
 }
 
+int vsock_write( vsock_t *s, void *buf, size_t len ) {
+    int rc;
+    
+    rc = sock_write( s->s, buf, len, s->otimeout ); 
+    return rc;
+}
+
 int vsock_fill ( vsock_t *vsock ) {
     int rc;
-    rc  = sock_read( vsock->s, vsock->ibuf, vsock->ilen );
+
+    if ( vsock == NULL ) {
+        error("vsock_fill: bad argument");
+        return -1;
+    }
+    if ( vsock->ibuf == NULL ) {
+        error("vsock_fill: buffer not allocated");
+        return -1;
+    }
+
+    rc  = sock_read( vsock->s, vsock->ibuf, vsock->ilen, vsock->itimeout );
+
+    vsock->iptr = vsock->ibuf;
+
     if ( rc >= 0 )
         vsock->icnt = rc;
+    else 
+        vsock->icnt = 0;
+    debug("fill buffer with %d chars ", vsock->icnt);
     return rc;
 }
 
@@ -286,18 +326,28 @@ char *smtp_get( vsock_t *vsock ) {
             error("");
 
         /* XXX should truncate memory later when CRLF found ? */
-        buf = realloc( buf, len + vsock->icnt);
-        if ( buf ) {
+        if ( buf == NULL ) {
+            debug("buf = malloc(%d)", len + vsock->icnt + 1 );
+            buf = malloc( len + vsock->icnt + 1);
+        }
+        else { 
+            debug("buf = realloc(%d)", len + vsock->icnt + 1 );
+            buf = realloc( buf, len + vsock->icnt + 1);
+        }
+
+        if ( buf == NULL ) {
             Perror("realloc");
             return NULL;
         }
         bufptr = buf + len;
 
-        memcpy( bufptr , vsock->ibuf, vsock->icnt );
+        memcpy( bufptr , vsock->iptr, vsock->icnt );
 
         if ( *bufptr == '\n' && lastchar == '\r' ) { 
-            len += 1;
+            debug("lastchar was '\\r' and next char = '\\n'");
+            len += 2;
             vsock->icnt -= 1;
+            vsock->iptr += 1;
             buf[len] = '\0';
             return buf;
         }
@@ -305,21 +355,31 @@ char *smtp_get( vsock_t *vsock ) {
         nextptr = bufptr;
 
         while( (eolptr = memchr( nextptr, '\r', vsock->icnt - (nextptr - bufptr) )) != NULL ) {
-            if ( (size_t)(eolptr - bufptr + 1) < vsock->icnt ) {
+            debug("found '\\r' symbol");
+            if ( ((size_t)(eolptr - bufptr + 1)) < vsock->icnt ) {
                 if ( (*(eolptr+1) == '\n') ) {
+                    debug("found '\\n' symbol");
                     len += eolptr - bufptr;
-                    vsock->icnt -= eolptr - bufptr;
+                    debug("read %d chars", eolptr - bufptr + 2);
+                    vsock->icnt -= eolptr - bufptr + 2;
+                    debug("%d chars left in buffer", vsock->icnt );
+                    buf = realloc( buf, len + 1);
+                    debug("result string have %d chars", len);
                     buf[len] = '\0';
+                    vsock->iptr += eolptr - bufptr + 2;
+                    debug("all ok, ret ahead");
                     return buf;
                 }
                 nextptr = eolptr + 1;
             } 
             else  {
-                lastchar = '\r';
-                break; /* '\r' is last char in buffer */
+                debug("last char is '\\r'");
+                lastchar = '\r'; /* found CR, but it last char in buf*/
+                break;           /* should check next buffer */
             }
         }
 
+        /* no CR LF found */
         len += vsock->icnt;
         vsock->icnt = 0;
 
