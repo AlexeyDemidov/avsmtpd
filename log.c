@@ -4,11 +4,14 @@
  */
 
 /*
- *  $Id: log.c,v 1.1 2003-02-16 16:44:08 alexd Exp $
+ *  $Id: log.c,v 1.2 2003-02-17 01:55:37 alexd Exp $
  *
  *  $Log: log.c,v $
- *  Revision 1.1  2003-02-16 16:44:08  alexd
- *  Initial revision
+ *  Revision 1.2  2003-02-17 01:55:37  alexd
+ *  some lint cleanup
+ *
+ *  Revision 1.1.1.1  2003/02/16 16:44:08  alexd
+ *  import into cvs
  *
  *  Revision 1.6  2001/03/24 20:24:56  alexd
  *  program name cleanup
@@ -43,8 +46,10 @@
 #include "daemon.h"
 #include "log.h"
 
-const static char *rcsid = "$Id: log.c,v 1.1 2003-02-16 16:44:08 alexd Exp $";
-const static char *revision = "$Revision: 1.1 $";
+#ifndef lint
+const static char *rcsid = "$Id: log.c,v 1.2 2003-02-17 01:55:37 alexd Exp $";
+const static char *revision = "$Revision: 1.2 $";
+#endif
 
 static int syslog_init = 0;
 static char *logfile = 0;

@@ -83,7 +83,7 @@ char *dw_readline( int s) {
     size_t  len;
     int     rc;
 
-    rc = dw_readint( s, &len );
+    rc = dw_readint( s, (int *)&len );
     if ( rc ) {
         error("dw_readline::dw_readint");
         return NULL;
@@ -178,7 +178,6 @@ error:
 void dw_getbaseinfo() {
     int s;
     int rc;
-    int dw_result;
     int nbases;
 
     int i;
@@ -187,7 +186,7 @@ void dw_getbaseinfo() {
 
     if ( (s = dw_open( drwebd_addr )) < 0) {
         error("dw_getbaseinfo: can't open connection to drwebd at localhost:3000");
-        return NULL;
+        return ;
     }
 
     rc = dw_writeint(s, DRWEBD_BASEINFO_CMD); 
@@ -214,7 +213,7 @@ error:
     debug("dw_getbaseinfo: can't write command to drwebd");
 
     dw_close( s );
-    return NULL;
+    return ;
 }
 
 int  dw_scan( void *data, size_t len ) {

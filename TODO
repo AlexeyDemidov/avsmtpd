@@ -4,6 +4,7 @@ redo I/O routines.
   buffers for each connection
   socket connect/accept routines
   fork server
+malloc debug
 logging  
 config file  
 access list

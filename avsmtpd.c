@@ -1,8 +1,11 @@
 /*
- *   $Id: avsmtpd.c,v 1.2 2003-02-17 01:22:48 alexd Exp $
+ *   $Id: avsmtpd.c,v 1.3 2003-02-17 01:55:37 alexd Exp $
  *
  *   $Log: avsmtpd.c,v $
- *   Revision 1.2  2003-02-17 01:22:48  alexd
+ *   Revision 1.3  2003-02-17 01:55:37  alexd
+ *   some lint cleanup
+ *
+ *   Revision 1.2  2003/02/17 01:22:48  alexd
  *   moved some functions to smtp.c sock.c
  *
  *
@@ -135,7 +138,7 @@ void main_loop() {
     notice("listening on %s", bind_to );
 
     do {
-        int peerlen = sizeof (peer);
+        size_t peerlen = sizeof (peer);
         s1 = accept( s, (struct sockaddr *)&peer, &peerlen);
 
         if ( s1 < 0 ) {
@@ -179,7 +182,7 @@ int check_data( struct mem_chunk *root ) {
 
     struct mem_chunk *next = root;
 
-    void *buf, *p;
+    char *buf, *p;
     size_t total = 0;
 
     while ( next != NULL && next->b != NULL ) {

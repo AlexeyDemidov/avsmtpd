@@ -8,13 +8,13 @@
  *
  */
 
-// Dr. Web daemon commands:
+/* Dr. Web daemon commands: */
 #define DRWEBD_SCAN_CMD         0x0001
 #define DRWEBD_VERSION_CMD      0x0002
 #define DRWEBD_BASEINFO_CMD     0x0003
 #define DRWEBD_IDSTRING_CMD     0x0004
 
-// DRWEBD_SCAN_FILE command flags:
+/*  DRWEBD_SCAN_FILE command flags: */
 #define DRWEBD_RETURN_VIRUSES   0x0001
 #define DRWEBD_RETURN_REPORT    0x0002
 #define DRWEBD_RETURN_CODES     0x0004

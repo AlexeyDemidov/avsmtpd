@@ -1,9 +1,12 @@
 
 /*
- *   $Id: smtp.c,v 1.1 2003-02-17 01:22:48 alexd Exp $
+ *   $Id: smtp.c,v 1.2 2003-02-17 01:55:37 alexd Exp $
  *
  *   $Log: smtp.c,v $
- *   Revision 1.1  2003-02-17 01:22:48  alexd
+ *   Revision 1.2  2003-02-17 01:55:37  alexd
+ *   some lint cleanup
+ *
+ *   Revision 1.1  2003/02/17 01:22:48  alexd
  *   moved some functions to smtp.c sock.c
  *
  *
@@ -90,7 +93,7 @@ int smtp_readln( int s, char *buf, size_t len ) {
             if ( cnt == 0 ) /* no data to read */
                 return 0;
             b[cnt] = '\0';
-            // debug( "recv: <%s>", b);
+            /* debug( "recv: <%s>", b); */
             bp = b; /* reset head to begin of b */
         }
         c = *bp; /* next char */
@@ -105,7 +108,7 @@ int smtp_readln( int s, char *buf, size_t len ) {
         *buf = c; /* store to caller buffer */
         cnt--; len--; bp++; buf++; /* */
     }
-//    set_errno( EMSGSIZE );
+/*    set_errno( EMSGSIZE ); */
     error("smtp_readln: MSG too big");
     return -1;
 }
@@ -222,7 +225,7 @@ smtp_readreply( int s ) {
 
     bzero( &resp, sizeof(struct smtp_resp));
 
-    // debug("smtp_readreply: enter");
+    /*  debug("smtp_readreply: enter"); */
     rc = smtp_readln( s, buf, sizeof( buf ) );
     if ( rc < 0) {
         return NULL;
@@ -258,7 +261,7 @@ smtp_readreply( int s ) {
         resp.code = atoi( code_start );
     }
     
-    // debug("text_start: <%s>", p );
+    /* // debug("text_start: <%s>", p ); */
 
     resp.text = malloc(strlen(p) + 1); 
     if ( resp.text == NULL ) {
@@ -323,7 +326,7 @@ chunk_add(  void *buf, size_t len ) {
         chunk->b = "";
     }
     else { 
-       chunk->b = malloc( len + 1 ); // trailing \0
+       chunk->b = malloc( len + 1 ); /* // trailing \0 */
        chunk->size = len;
        strncpy( chunk->b, buf, len + 1); 
     }
