@@ -1,11 +1,21 @@
-redo I/O routines.
-  timeouts
-  accept variable length lines
-  buffers for each connection
-  socket connect/accept routines
-  fork server
-malloc debug
+  redo I/O routines.
+    timeouts on connection/read/write
+  *   select
+  *   poll
+  ! accept variable length lines
+  ! buffers for each connection
+    support null in smtp sream
+  * socket connect/accept routines
+  * fork server
+
+  FSM for smtp
+  parsing commands/replys
+  parsing extended result codes
+* malloc debug
+    rewrite some routines (strdup)
+
 logging  
+  debug( FACILTY )
 config file  
 access list
   connect
@@ -15,3 +25,8 @@ access list
 bounce
   templates
 Received: should be optional
+setproctitle
+signal handling
+cleanup when shutting down
+LMTP protocol support
+  AUTH suport
